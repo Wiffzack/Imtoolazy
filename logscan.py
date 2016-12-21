@@ -39,10 +39,9 @@ def emptys():
 	if line in ['\n', '\r\n']:
 		print str(line_num)
 		if any(str(line_num) in i for i in empty_line):
-			print "Line already empty"
+			pass
 		else:
 			empty_line.extend([str(line_num)])
-		print empty_line
 	
 def file_len(fname):
 	i = 0
