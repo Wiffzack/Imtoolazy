@@ -67,7 +67,7 @@ while True:
 			print "Dies ist ein Teststring"
 			#if line_nums in [x]:
 			if any(line_nums in s for s in x):
-        pass
+				pass
 			else:
 				x.extend([line_nums])
 				line_number = line_num+2
