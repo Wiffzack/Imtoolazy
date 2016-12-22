@@ -11,8 +11,6 @@ Install Snort :
 https://www.snort.org/downloads/snort/Snort_2_9_9_0_Installer.exe
 
 Configure Snort - Add rules (Copy in the rules Folder in the Snort folder)
-Customize the snort.etc to your needs. You can take the Examples!
-
 
 
 Requirement for Compile:
@@ -29,5 +27,28 @@ Example ! os.chdir(r'C:\Snort\log')
 
 Compile Example:
 python compile.py scanlog.py
+
+
+
+
+#Configure Snort !!!
+The most important point is to configure Snort .Open snort.conf in Snort\etc
+
+1. Find the line : ipvar HOME_NET any
+
+and change the "any" to your home address space .
+Example : ipvar HOME_NET 192.168.0.0/24
+
+You can find your Address in many different ways :
+cmd -> tracert -h 1 google.at or ipconfig /all or etc...
+
+After this , change the Path to your Snort location :
+var RULE_PATH D:\Snort\rules
+var SO_RULE_PATH D:\Snort\rules
+var PREPROC_RULE_PATH D:\Snort\preproc_rules
+
+At least change the Path for the log files to your Snort folder !
+config logdir: D:\Snort\log
+
 
 
