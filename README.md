@@ -7,10 +7,25 @@ rights , which are necessary to add Rules to the Windows Firewall.
 
 Instruction:
 
-Requirement
+Install Snort :
+https://www.snort.org/downloads/snort/Snort_2_9_9_0_Installer.exe
+
+Configure Snort - Add rules (Copy in the rules Folder in the Snort folder)
+
+
+Customize the path to the Snort log folder.
+Example ! os.chdir(r'C:\Snort\log') 
+
+Requirement for Compile:
+
 Python 2.5.4 with py2exe
 
 Python : https://www.python.org/download/releases/2.5.4/
 py2exe : https://sourceforge.net/projects/py2exe/
+
+Just Download and install them.
+
+Compile Example:
+python compile.py scanlog.py
 
 
