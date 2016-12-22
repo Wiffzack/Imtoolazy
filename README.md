@@ -26,7 +26,7 @@ Customize the path to the Snort log folder in the logscan.py .
 Example: os.chdir(r'C:\Snort\log') 
 
 Compile Example:
-python compile.py scanlog.py
+python compile.py logscan.py
 
 
 
