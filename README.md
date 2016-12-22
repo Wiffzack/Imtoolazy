@@ -44,8 +44,11 @@ cmd -> tracert -h 1 google.at or ipconfig /all or etc...
 
 After this , change the Path to your Snort location :
 var RULE_PATH D:\Snort\rules
+
 var SO_RULE_PATH D:\Snort\rules
+
 var PREPROC_RULE_PATH D:\Snort\preproc_rules
+
 
 At least change the Path for the log files to your Snort folder !
 config logdir: D:\Snort\log
