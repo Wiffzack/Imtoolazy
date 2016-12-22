@@ -22,8 +22,8 @@ py2exe : https://sourceforge.net/projects/py2exe/
 
 Just Download and install them.
 
-Customize the path to the Snort log folder.
-Example ! os.chdir(r'C:\Snort\log') 
+Customize the path to the Snort log folder in the logscan.py .
+Example: os.chdir(r'C:\Snort\log') 
 
 Compile Example:
 python compile.py scanlog.py
