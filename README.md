@@ -1,7 +1,6 @@
 # Snort-Windows-Interacting-Tool
 A small program that converts the conspicuousness of the Snort log into 
-Windows Firewall Rules. In the next version if some network problems 
-occurs it should offer the user some solutions. It is compatible with py2exe.
+Windows Firewall Rules. It is compatible with py2exe.
 This is necessary because it is a simple alternative to get admin 
 rights , which are required to add Rules to the Windows Firewall.
 
