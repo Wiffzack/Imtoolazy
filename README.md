@@ -42,6 +42,7 @@ You can find your Address in many different ways :
 cmd -> tracert -h 1 google.at or ipconfig /all or etc...
 
 After this , change the Path to your Snort location :
+
 var RULE_PATH D:\Snort\rules
 
 var SO_RULE_PATH D:\Snort\rules
