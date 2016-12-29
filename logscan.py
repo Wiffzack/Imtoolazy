@@ -11,10 +11,10 @@ str3 = r'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMa
 str4 = r'SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\'
 str5 = r'SYSTEM\\CurrentControlSet\\services\\DNS\\Parameters\\'
 str6 = r'SYSTEM\\CurrentControlSet\\Services\\AFD\\Parameters\\'
-#line_number = int(raw_input('Enter the line number: '))
 x = []
 empty_line = []
 run = True
+DETACHED_PROCESS = 0x00000008
 
 def lookup(addr):
 	try:
@@ -39,6 +39,7 @@ def ipextract():
 	words = line.split() 
 	str2= words[1]
 	str2 = str2.split(":", 1)[0]
+	print str2
 	f.close()
 	return str2
 	
@@ -114,39 +115,55 @@ def file_len(fname):
 	f.close()
 	return i + 1
 
-if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
-	while run:	
-		last_line = file_len('alert.ids')
-		myFile = open('alert.ids', "U")
-		for line in myFile.readlines():
-			line_num += 1
-			emptys()
-			if line_num == last_line:
-				time.sleep(1)
-				break
-			if line.find(compare[0]) >= 0:
-				line_nums=str(line_num)
-				if any(line_nums in s for s in x):
-					pass
-				else:
-					x.extend([line_nums])
-					if 'portscan' in line:
+
+
+#pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
+#pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
+#pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
+try:
+	if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
+		while run:	
+			last_line = file_len('alert.ids')
+			myFile = open('alert.ids', "U")
+			for line in myFile.readlines():
+				line_num += 1
+				emptys()
+				if line_num == last_line:
+					time.sleep(1)
+					break
+				if line.find(compare[0]) >= 0:
+					line_nums=str(line_num)
+					if any(line_nums in s for s in x):
+						pass
+					else:
+						x.extend([line_nums])
 						line_number = line_num+2
-						firewallr()
-					if 'OBFUSCATION' in line:
-						line_number = line_num+2
-						dnscheck()
-					if 'flood' in line:
-						line_number = line_num+2
-						synflood()
-					if 'ddos' in line:
-						line_number = line_num+2
-						icmp()
-					if 'snmp' in line:
-						line_number = line_num+2
-						snmp()
-		time.sleep(1)
-		myFile.close()
-		line_num = 0
-else:
-	print "Either file is missing or is not readable"
+						if 'portscan' in line:
+							firewallr()
+						if 'OBFUSCATION' in line:
+							dnscheck()
+						if 'EXCEEDS' in line:
+							dnscheck()
+						if 'flood' in line:
+							synflood()
+						if 'ddos' in line:
+							icmp()
+						if 'snmp' in line:
+							snmp()
+						if 'cmd/unix/generic' in line:
+							firewallr()
+			time.sleep(1)
+			myFile.close()
+			line_num = 0
+	else:
+		print "Either file is missing or is not readable"
+except KeyboardInterrupt:
+	try:
+		try:
+			print "All removed"
+			os.remove(PATH)
+			sys.exit(0)
+		except OSError:
+			pass
+	except SystemExit:
+		os._exit(0)
