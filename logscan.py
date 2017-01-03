@@ -11,10 +11,15 @@ str3 = r'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMa
 str4 = r'SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\'
 str5 = r'SYSTEM\\CurrentControlSet\\services\\DNS\\Parameters\\'
 str6 = r'SYSTEM\\CurrentControlSet\\Services\\AFD\\Parameters\\'
+str7 = r'wmic nicconfig where TcpipNetbiosOptions=0 call SetTcpipNetbios 2'
 x = []
 empty_line = []
+cache = []
+blockedip = []
+ip = []
 run = True
 DETACHED_PROCESS = 0x00000008
+
 
 def lookup(addr):
 	try:
@@ -37,22 +42,30 @@ def ipextract():
 			break
 		i += 1
 	words = line.split() 
-	str2= words[1]
-	str2 = str2.split(":", 1)[0]
-	print str2
-	f.close()
-	return str2
+	cache = words[1]
+	cache = cache.split(":", 1)[0]
+	if any(cache in s for s in blockedip):
+		print "Es wurde ein Eintrag gefuden"
+		return;
+	else:
+		blockedip.extend([cache])
+		print cache
+		f.close()
+		return cache
 	
 def dnscheck():
 	ip = ipextract()
-	print ip
-	name,alias,addresslist = lookup(ip)
-	ip2 = reverselookup(name)
-	winreg(name,'*',0x00000004,0,str3)
-	if ip in ip2:
-		pass
+	if not ip:
+		return;
 	else:
-		print "Your DNS Cache is poisened!"
+		print ip
+		name,alias,addresslist = lookup(ip)
+		ip2 = reverselookup(name)
+		winreg(name,'*',0x00000004,0,str3)
+		if ip in ip2:
+			pass
+		else:
+			print "Your DNS Cache is poisened!"
 		
 def synflood():
 	winreg(name,'SynAttackProtect',0x00000002,1,str4)
@@ -95,10 +108,35 @@ def firewallr():
 	rulename = "".join(("name=rule", indexn))
 	wordx[7] = rulename
 	wordx = " ".join(wordx)
-	wordx = "".join((wordx, ipextract()))
-	print wordx
-	os.system(wordx)
-	return;
+	cache = ipextract()
+	if not cache:
+		return;
+	else:
+		wordx = "".join((wordx, cache))
+		print wordx
+		os.system(wordx)
+		return;
+		
+def dnetbios():
+	os.system(str7)
+	
+def addhost():
+	ip = ipextract()
+	if not ip:
+		return;
+	else:
+		os.chdir(r'C:\Windows\System32\drivers\etc')
+		#os.chdir(r'C:\Users\Gregor\Desktop')
+		cache = "".join(ip)
+		print cache
+		try:
+			fileObj = open('hosts', "a")
+			fileObj.write(cache + "\n")
+			fileObj.close()
+		except IOError:
+			pass
+		os.chdir(r'D:\Snort\log')
+		return;
 	
 def emptys():
 	if line in ['\n', '\r\n']:
@@ -115,8 +153,7 @@ def file_len(fname):
 	f.close()
 	return i + 1
 
-
-
+	
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
@@ -138,7 +175,7 @@ try:
 					else:
 						x.extend([line_nums])
 						line_number = line_num+2
-						if 'portscan' in line:
+						if 'scan' in line:
 							firewallr()
 						if 'OBFUSCATION' in line:
 							dnscheck()
@@ -152,6 +189,13 @@ try:
 							snmp()
 						if 'cmd/unix/generic' in line:
 							firewallr()
+						if 'exploit' in line:
+							dnscheck()
+							firewallr()
+						if 'suspicious' in line:
+							addhost()
+						if 'NBTStat' in line:
+							dnetbios()
 			time.sleep(1)
 			myFile.close()
 			line_num = 0
