@@ -1,4 +1,4 @@
-import mmap,os,os.path,sys,subprocess,time,socket
+import mmap,os,os.path,sys,subprocess,time,socket,io
 from subprocess import Popen
 import _winreg as wreg
 PATH= 'alert.ids'
@@ -126,7 +126,7 @@ def addhost():
 		return;
 	else:
 		os.chdir(r'C:\Windows\System32\drivers\etc')
-		#os.chdir(r'C:\Users\Gregor\Desktop')
+		cache = str2
 		cache = "".join(ip)
 		print cache
 		try:
@@ -152,11 +152,55 @@ def file_len(fname):
 		pass
 	f.close()
 	return i + 1
+	
+def tracertc():
+	cmd = 'tracert -d -h 1 www.google.at'.split()
+	count2 = 0
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 5:
+				cache = line.split()
+				return cache[7]
+			else:
+				pass
+		else:
+			break
+	print p.communicate()[0]
+	return;
+	
+def pingc():
+	cmd = 'ping.exe -n 1 '
+	cmd = "".join((cmd, tracertc())).split()
+	count2 = 0
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 3:
+				cache = line.split()
+				cache = cache[5]
+				if cache == "TTL=64":
+					pass
+				else:
+					print "Something in your network is not normal!!!"
+				#return cache[5]
+			else:
+				pass
+		else:
+			break
+	print p.communicate()[0]
+	return;
 
 	
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
+pingc()
+time.sleep(999)
 try:
 	if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
 		while run:	
