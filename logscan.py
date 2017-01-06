@@ -1,3 +1,4 @@
+from __future__ import division
 import mmap,os,os.path,sys,subprocess,time,socket,io
 from subprocess import Popen
 import _winreg as wreg
@@ -19,6 +20,13 @@ str11 = r'ipconfig /release'
 str12 = r'ipconfig /renew'
 str13 = r'netsh int ip set global taskoffload=disabled'
 str14 = r'netsh interface ip set interface 10 retransmittime=3000'
+str15 = r'NETSH INT TCP SET HEURISTICS DISABLED'
+str16 = r'NETSH INT TCP SET GLOBAL AUTOTUNINGLEVEL=DISABLED'
+str17 = r'NETSH INT TCP SET GLOBAL RSS=ENABLED'
+str18 = r'IPCONFIG /FLUSHDNS'
+str19 = r'netsh int tcp set global congestionprovider=ctcp'
+str20 = r'netsh int tcp set global chimney=enabled'
+str21 = r'netsh int ipv4 set dynamicport tcp start=1025 num=65535'
 x = []
 empty_line = []
 cache = []
@@ -103,6 +111,13 @@ def afdprotection():
 	winreg(name,'MinimumDynamicBacklog',0x00000014,1,str5)
 	winreg(name,'MaximumDynamicBacklog',0x00004E20,1,str5)
 	winreg(name,'DynamicBacklogGrowthDelta',0x0000000A,1,str5)
+	
+def tcpdrop():
+	os.system(str21)
+	winreg(name,'TcpTimedWaitDelay',0x0000003C,1,str4)
+	winreg(name,'MaxUserPort',0x00008000,1,str4)
+	winreg(name,'MaxFreeTcbs',0x0000ffff,1,str4)
+	winreg(name,'MaxHashTableSize',0x00004000,1,str4)
 	
 def winreg(dnsname, regn, rvalue,rpath,str):
 	regrule = "".join((str3, dnsname))
@@ -260,7 +275,8 @@ def arpc():
 			if count2 == 2:
 				cache =  line.split()
 				cache = cache[3]
-				cache = cache.split("x", 1)[1]
+				cache = int(cache, 16)
+				#cache = cache.split("x", 1)[1]
 				return cache
 			else:
 				pass
@@ -278,35 +294,86 @@ def netviewc():
 		if line != '':
 			count2 += 1
 		else:
-			#if (count2-2) > 5:
-			print "Network seems to be bigger"
-			cache = str14.split()
-			cache2 = str(arpc())
-			cache[5] = cache2
-			cache = " ".join(cache)
-			os.system(cache)
+			if (count2-2) > 5:
+				print "Network seems to be bigger"
+				cache = str14.split()
+				cache2 = str(arpc())
+				cache[5] = cache2
+				cache = " ".join(cache)
+				os.system(cache)
+				break
+		break
+	print p.communicate()[0]
+	return;
+	
+def redirectc():
+	cmd = 'net config rdr'.split()
+	count2 = 0
+	try:
+		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+	except:
+		print "Redirector Issues Found"
+	print p.communicate()[0]
+	return;
+	
+def ipstatsc():
+	cmd = 'netsh interface ipv4 show ipstats'.split()
+	count2 = 0
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 5:
+				cache = line.split()
+				recdp = (int(cache[3])/100)
+				print recdp
+			if count2 == 6:
+				 cache = line.split()
+				 cache = int(cache[3])
+				 if cache > 10:
+					print "Please enable Flow Control or try to reduce the bandwidht"
+			if count2 == 10:
+				cache = line.split()
+				reciveddp = int(cache[3])
+				print reciveddp
+				calc = reciveddp/recdp
+				print calc
+				if calc > 2:
+					print "Your network is fucked"
+					os.system(str19)
+					os.system(str20)
+					tcpdrop()
+		else:
 			break
 	print p.communicate()[0]
 	return;
 	
 	
 def diagnose():
-	problemc = 0
+	#problemc = 0
+	problemc += 1
 	if problemc == 1:
-		problemc += 1
 		os.system(str11)
 		os.system(str12)
 	else:
 		if problemc == 2:
 			os.system(str13)
-			print "Fuck"
+			os.system(str15)
+			os.system(str16)
+			os.system(str17)
+			print "Well Fuck"
 	return;
+	
+def everything():
+	pingc()
+	firewallc()
+	ipstatsc()
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
-netviewc()
-time.sleep(999)
+#time.sleep(999)
 try:
 	if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
 		while run:
@@ -317,8 +384,7 @@ try:
 				emptys()
 				if line_num == last_line:
 					time.sleep(1)
-					pingc()
-					firewallc()
+					everything()
 					break
 				if line.find(compare[0]) >= 0:
 					line_nums=str(line_num)
