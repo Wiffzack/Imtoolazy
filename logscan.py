@@ -3,7 +3,7 @@ from subprocess import Popen
 import _winreg as wreg
 PATH= 'alert.ids'
 os.chdir(r'D:\Snort\log')
-line_number = line_num = counter = 0
+line_number = line_num = counter = counterc = problemc = 0
 compare = ['[**]'];
 str1 = ("cmd /c netsh advfirewall firewall add rule name=rule1 dir=in action=block protocol=any remoteip=")
 str2 = ("127.0.0.1 ")
@@ -12,9 +12,17 @@ str4 = r'SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\'
 str5 = r'SYSTEM\\CurrentControlSet\\services\\DNS\\Parameters\\'
 str6 = r'SYSTEM\\CurrentControlSet\\Services\\AFD\\Parameters\\'
 str7 = r'wmic nicconfig where TcpipNetbiosOptions=0 call SetTcpipNetbios 2'
+str8 = r'netsh int tcp set security mpp=enabled'
+str9 = r'netsh int tcp set heuristics forcews=enabled'
+str10 = r'netsh advfirewall set allprofiles state on'
+str11 = r'ipconfig /release'
+str12 = r'ipconfig /renew'
+str13 = r'netsh int ip set global taskoffload=disabled'
+str14 = r'netsh interface ip set interface 10 retransmittime=3000'
 x = []
 empty_line = []
 cache = []
+cache2 = []
 blockedip = []
 ip = []
 run = True
@@ -33,6 +41,7 @@ def reverselookup(name):
 		return host
 	except socket.gaierror, err:
 		print "cannot resolve hostname: ", name, err
+		return;
 
 def ipextract():
 	f = open('alert.ids', "U")
@@ -60,6 +69,9 @@ def dnscheck():
 	else:
 		print ip
 		name,alias,addresslist = lookup(ip)
+		if not name:
+			print "Name not resolvable!"
+			return;
 		ip2 = reverselookup(name)
 		winreg(name,'*',0x00000004,0,str3)
 		if ip in ip2:
@@ -68,6 +80,7 @@ def dnscheck():
 			print "Your DNS Cache is poisened!"
 		
 def synflood():
+	os.system(str8)
 	winreg(name,'SynAttackProtect',0x00000002,1,str4)
 	winreg(name,'TcpMaxPortsExhausted',0x00000005,1,str4)
 	winreg(name,'TcpMaxHalfOpen',0x000001F4,1,str4)
@@ -156,7 +169,7 @@ def file_len(fname):
 def tracertc():
 	cmd = 'tracert -d -h 1 www.google.at'.split()
 	count2 = 0
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	while True:
 		line = p.stdout.readline()
 		if line != '':
@@ -172,9 +185,15 @@ def tracertc():
 	return;
 	
 def pingc():
+	counterc = 0
 	cmd = 'ping.exe -n 1 '
-	cmd = "".join((cmd, tracertc())).split()
-	count2 = 0
+	try:
+		cmd = "".join((cmd, tracertc())).split()
+	except:
+		print "Network is not working properly"
+		diagnose()
+		return;
+	count2 = problemc = 0
 	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
 	while True:
 		line = p.stdout.readline()
@@ -182,11 +201,19 @@ def pingc():
 			count2 += 1
 			if count2 == 3:
 				cache = line.split()
+				cache2 = cache[4]
 				cache = cache[5]
 				if cache == "TTL=64":
+					print "Everthing seems right!!!!!!!!!!!+"
 					pass
 				else:
 					print "Something in your network is not normal!!!"
+				cache2 = cache2.split("=", 1)[1]
+				cache2 = cache2.split("ms", 1)[0]
+				if int(cache2) > 3:
+					counterc += 1
+					if counterc == 3:
+						print "Network time abnormal!"
 				#return cache[5]
 			else:
 				pass
@@ -194,16 +221,95 @@ def pingc():
 			break
 	print p.communicate()[0]
 	return;
-
 	
+def firewallc():
+	count2 = 0
+	cmd = 'netsh advfirewall show currentprofile'.split()
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 4:
+				cache = line.split()
+				cache = cache[1]
+				if cache == "EIN":
+					pass
+				else:
+					print "Error try to active Windows Firewall"
+					try:
+						os.system(str10)
+					except:
+						print "Couldnt activate Windows Firewall"
+						sys.exit(0)
+			else:
+				pass
+		else:
+			break
+	print p.communicate()[0]
+	return;
+	
+def arpc():
+	cmd = 'arp -a'.split()
+	count2 = 0
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 2:
+				cache =  line.split()
+				cache = cache[3]
+				cache = cache.split("x", 1)[1]
+				return cache
+			else:
+				pass
+		else:
+			break
+	print p.communicate()[0]
+	return;
+	
+def netviewc():
+	cmd = 'net view'.split()
+	count2 = 0
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline()
+		if line != '':
+			count2 += 1
+		else:
+			#if (count2-2) > 5:
+			print "Network seems to be bigger"
+			cache = str14.split()
+			cache2 = str(arpc())
+			cache[5] = cache2
+			cache = " ".join(cache)
+			os.system(cache)
+			break
+	print p.communicate()[0]
+	return;
+	
+	
+def diagnose():
+	problemc = 0
+	if problemc == 1:
+		problemc += 1
+		os.system(str11)
+		os.system(str12)
+	else:
+		if problemc == 2:
+			os.system(str13)
+			print "Fuck"
+	return;
+
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
-pingc()
+netviewc()
 time.sleep(999)
 try:
 	if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
-		while run:	
+		while run:
 			last_line = file_len('alert.ids')
 			myFile = open('alert.ids', "U")
 			for line in myFile.readlines():
@@ -211,6 +317,8 @@ try:
 				emptys()
 				if line_num == last_line:
 					time.sleep(1)
+					pingc()
+					firewallc()
 					break
 				if line.find(compare[0]) >= 0:
 					line_nums=str(line_num)
@@ -240,7 +348,7 @@ try:
 							addhost()
 						if 'NBTStat' in line:
 							dnetbios()
-			time.sleep(1)
+			time.sleep(10)
 			myFile.close()
 			line_num = 0
 	else:
