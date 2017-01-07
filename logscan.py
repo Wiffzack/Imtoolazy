@@ -1,10 +1,11 @@
 from __future__ import division
-import mmap,os,os.path,sys,subprocess,time,socket,io
+import mmap,os,os.path,sys,subprocess,time,socket
 from subprocess import Popen
 import _winreg as wreg
 PATH= 'alert.ids'
 os.chdir(r'D:\Snort\log')
 line_number = line_num = counter = counterc = problemc = 0
+ldp = 0.0
 compare = ['[**]'];
 str1 = ("cmd /c netsh advfirewall firewall add rule name=rule1 dir=in action=block protocol=any remoteip=")
 str2 = ("127.0.0.1 ")
@@ -24,16 +25,15 @@ str15 = r'NETSH INT TCP SET HEURISTICS DISABLED'
 str16 = r'NETSH INT TCP SET GLOBAL AUTOTUNINGLEVEL=DISABLED'
 str17 = r'NETSH INT TCP SET GLOBAL RSS=ENABLED'
 str18 = r'IPCONFIG /FLUSHDNS'
-str19 = r'netsh int tcp set global congestionprovider=ctcp'
+str19 = r'netsh int tcp set supplemental congestionprovider=ctcp'
 str20 = r'netsh int tcp set global chimney=enabled'
 str21 = r'netsh int ipv4 set dynamicport tcp start=1025 num=65535'
-x = []
-empty_line = []
-cache = []
-cache2 = []
-blockedip = []
-ip = []
-run = True
+str22 = r'netsh int ipv4 set subinterface 10 mtu=1492 store=persistent'
+str23 = r'netsh int ip reset c:\logdatei.log; netsh winsock reset'
+str24 = r'powershell Disable-NetAdapterLso -Name *'
+str25 = r'net stop Dhcp && net start Dhcp'
+str26 = r'netsh int tcp set global autotuninglevel=disabled'
+x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];run = True
 DETACHED_PROCESS = 0x00000008
 
 
@@ -71,6 +71,7 @@ def ipextract():
 		return cache
 	
 def dnscheck():
+	global name
 	ip = ipextract()
 	if not ip:
 		return;
@@ -119,14 +120,23 @@ def tcpdrop():
 	winreg(name,'MaxFreeTcbs',0x0000ffff,1,str4)
 	winreg(name,'MaxHashTableSize',0x00004000,1,str4)
 	
+def tcpdrops():
+	winreg(name,'TcpMaxConnectRetransmissions',0x00000004,1,str4)
+	winreg(name,'TcpMaxDataRetransmissions',0x0000000A,1,str4)
+	winreg(name,'KeepAliveInterval',0x000007D0,1,str4)	
+
 def winreg(dnsname, regn, rvalue,rpath,str):
-	regrule = "".join((str3, dnsname))
+	if not dnsname:
+		pass
+	else:
+		regrule = "".join((str3, dnsname))
 	print regrule
 	if rpath == 0:
 		key = wreg.CreateKey(wreg.HKEY_CURRENT_USER, regrule)
 	else:
 		key = wreg.CreateKey(wreg.HKEY_LOCAL_MACHINE, regrule)
 	wreg.SetValueEx(key, regn, 0, wreg.REG_DWORD, rvalue)
+
 
 def firewallr():
 	global counter
@@ -200,6 +210,7 @@ def tracertc():
 	return;
 	
 def pingc():
+	global problemc
 	counterc = 0
 	cmd = 'ping.exe -n 1 '
 	try:
@@ -216,6 +227,7 @@ def pingc():
 			count2 += 1
 			if count2 == 3:
 				cache = line.split()
+				print cache
 				cache2 = cache[4]
 				cache = cache[5]
 				if cache == "TTL=64":
@@ -295,7 +307,7 @@ def netviewc():
 			count2 += 1
 		else:
 			if (count2-2) > 5:
-				print "Network seems to be bigger"
+				print "Network seems to be bigger , increase retransmit time"
 				cache = str14.split()
 				cache2 = str(arpc())
 				cache[5] = cache2
@@ -340,35 +352,52 @@ def ipstatsc():
 				calc = reciveddp/recdp
 				print calc
 				if calc > 2:
-					print "Your network is fucked"
+					print "Your network drop more than 2% of the packets!"
+					ldp = calc
 					os.system(str19)
 					os.system(str20)
+					os.system(str26)
 					tcpdrop()
+					netviewc()
 		else:
 			break
 	print p.communicate()[0]
 	return;
 	
+def dlso(command):
+	cmd = command.split()
+	try:
+		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+		print p.communicate()[0]
+	except:
+		print "Something went wrong"
+	return;
 	
 def diagnose():
-	#problemc = 0
 	problemc += 1
 	if problemc == 1:
+		print "Release Adresses and try to renew them"
 		os.system(str11)
 		os.system(str12)
 	else:
 		if problemc == 2:
+			dlso(str24)
 			os.system(str13)
 			os.system(str15)
 			os.system(str16)
 			os.system(str17)
 			print "Well Fuck"
+			if problemc == 3:
+				print "No Solution found  -> reset TCP"
+				os.system(str23)
+				if problemc == 4:
+					print "Im not able to solve this! Sorry"
 	return;
 	
 def everything():
-	pingc()
 	firewallc()
 	ipstatsc()
+	pingc()
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
