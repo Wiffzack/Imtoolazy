@@ -64,4 +64,6 @@ config logdir:
 D:\Snort\log
 
 
+#Configure hdparm !
+
 
