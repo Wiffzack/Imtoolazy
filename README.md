@@ -1,8 +1,10 @@
-# Snort-Windows-Interacting-Tool
+# Imtoolazy
 A small program that converts the conspicuousness of the Snort log into 
-Windows Firewall Rules. It is compatible with py2exe.
+Windows Firewall Rules. Monitor data drops and try to find a solution. 
+Monitors S.M.A.R.T status.It is compatible with py2exe.
 This is necessary because it is a simple alternative to get admin 
 rights , which are required to add Rules to the Windows Firewall.
+
 
 Instruction:
 
@@ -12,6 +14,11 @@ https://www.snort.org/downloads/snort/Snort_2_9_9_0_Installer.exe
 Configure Snort - Add rules (Copy in the rules Folder in the Snort folder)
 Dont forget to include them in the snort.conf :  $RULE_PATH/example.rules
 
+Install Nmap:
+https://nmap.org/download.html
+
+Install hdparm for Windows:
+http://disablehddapm.blogspot.co.at/
 
 Requirement for Compile:
 
