@@ -23,6 +23,7 @@ http://disablehddapm.blogspot.co.at/
 Requirement for Compile:
 
 Python 2.5.4 with py2exe
+After Python installed . cmd -> pip install py2exe
 
 Python : https://www.python.org/download/releases/2.5.4/
 py2exe : https://sourceforge.net/projects/py2exe/
