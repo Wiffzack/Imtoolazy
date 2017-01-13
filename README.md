@@ -65,5 +65,4 @@ D:\Snort\log
 
 
 #Configure hdparm !
-
-
+Hdparm must be started as admin.In Windows 10, it must be started in compatibility mode XP.
