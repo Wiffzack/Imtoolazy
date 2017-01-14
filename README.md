@@ -8,6 +8,8 @@ rights , which are required to add Rules to the Windows Firewall.
 
 Instruction:
 
+Require : Powershell 2.0>=
+
 Install Snort :
 https://www.snort.org/downloads/snort/Snort_2_9_9_0_Installer.exe
 
