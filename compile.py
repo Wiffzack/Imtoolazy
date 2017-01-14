@@ -9,6 +9,8 @@ sys.argv.append('-q')
 
 opts = {
     'py2exe': {
+		'excludes' : ["tcl", ],
+		'dll_excludes': ["tcl84.dll", "tk84.dll"],
         'compressed': 1,
         'optimize': 2,
         'bundle_files': 1
