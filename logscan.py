@@ -11,7 +11,8 @@ from win32api import *
 from win32gui import *
 import errno
 PATH= 'alert.ids'
-line_number = line_num = counter = counterc = problemc = 0
+fname = r'D:\Snort\log'
+line_number = line_num = counter = counterc = problemc = cool = 0
 ldp = 0.0;cv = 10.0;cv2 = 5.0;aptn = 15
 compare = ['[**]'];
 str1 = ("cmd /c netsh advfirewall firewall add rule name=rule1 dir=in action=block protocol=any remoteip=")
@@ -46,6 +47,8 @@ str29 = 'wmic diskdrive get status'
 str30 = 'netsh dnsclient set dnsservers name=10 source=static address=8.8.8.8 validate=no'
 str31 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" SMB1 -Type DWORD -Value 0 -Force'
 str32 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" SMB2 -Type DWORD -Value 0 -Force'
+str33 = 'netsh int tcp set global dca=enabled'
+str34 = 'netsh int tcp set global rsc=enabled'
 x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True
 DETACHED_PROCESS = 0x00000008
 
@@ -179,6 +182,11 @@ def tcpdrops():
 	winreg(name,'TcpMaxConnectRetransmissions',0x00000004,1,str4)
 	winreg(name,'TcpMaxDataRetransmissions',0x0000000A,1,str4)
 	winreg(name,'KeepAliveInterval',0x000007D0,1,str4)	
+
+def tune():
+	os.system(str15)
+	os.system(str33)
+	os.system(str34)
 
 def winreg(dnsname, regn, rvalue,rpath,str):
 	if not dnsname:
@@ -338,7 +346,6 @@ def ipowershell(choose):
 	try:
 		cmd = """powershell "Get-WmiObject -Class Win32_IP4RouteTable | where { $_.destination -eq '0.0.0.0' -and $_.mask -eq '0.0.0.0'} | Sort-Object metric1 | select nexthop, metric1, interfaceindex"""
 		count2 = 0
-		print cmd
 		b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
 		time.sleep(2)
 		while True:
@@ -346,15 +353,12 @@ def ipowershell(choose):
 			if line != '':
 				count2 += 1
 				if count2 == 4:
-					print line
 					cache =  line.split()
 					if choose == 0:
 						cache = cache[0]
-						print cache
 						return cache
 					else:
 						cache = cache[2]
-						print cache
 						return cache
 				else:
 					pass
@@ -371,7 +375,6 @@ def ipowershell(choose):
 			if line != '':
 				count2 += 1
 				if count2 == 5:
-					print line
 					cache =  line.split()
 					cache = cache[0]
 					return cache
@@ -454,7 +457,6 @@ def nmap():
 	part1 = ip.split(".", 2)[1]
 	part2 = ip.split(".", 3)[2]
 	ips =  "".join([cmd,part0,'.',part1,'.',part2,'.0/24'])
-	print ips
 	count2 = 0
 	c = subprocess.Popen(ips, stdout=subprocess.PIPE, stderr=None)
 	time.sleep(1)
@@ -553,13 +555,17 @@ def diagnose():
 	return;
 	
 def everything():
+	print "3"
 	checksmart()
+	checktemp()
 	firewallc()
 	ipstatsc()
 	pingc()
 	checkapp()
+	print "4"
 
 def initials():
+	global fname
 	nslookupc()
 	
 # Disk check part	Nothing interesting!
@@ -633,14 +639,12 @@ def checksmart():
 					cache = line.split()
 					cache = cache.split("=", 1)[1]
 					cache = cache[0]
-					#print cache
 					if not cache:
 						pass
 					else:
 						if cache == "OK":
 							pass
 						else:
-							#print "S.M.A.R.T Error ! Its time for backups!"
 							w.balloon_tip("S.M.A.R.T Error ! ", "Its time for backups!")
 							os.system("wmic diskdrive get model, name, status")
 							checknfts()
@@ -651,6 +655,99 @@ def checksmart():
 		else:
 			break
 	return;	
+	
+def setapm(level):
+	global cool
+	if level == 1:
+		cmd = 'hdparm.exe -B 128 sda'.split()
+		cmd1 = 'hdparm.exe -B 128 hda'.split()
+	else:
+		cmd = 'hdparm.exe -B 255 sda'.split()
+		cmd1 = 'hdparm.exe -B 255 hda'.split()
+	try:
+		os.chdir(r'C:\Program Files (x86)\hdparm')
+	except:
+		Tk().withdraw()
+		hdparmd = askdirectory()
+		for ch in ['//']:
+			if ch in hdparmd:
+				hdparmd=hdparmd.replace(ch,"\\")
+		print fname
+		os.chdir(hdparmd)
+	subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	subprocess.Popen(cmd1, stdout=subprocess.PIPE, stderr=None)
+	w.balloon_tip("APM level Set", "Finish")
+	os.chdir(fname)
+	cool = 1
+	
+#except seems not really to work!
+def checktemp():
+	cmd = """powershell  Get-PhysicalDIsk | Get-StorageReliabilityCounter |  Select-Object Temperature"""
+	count2 = 0
+	b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = b.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 4:
+				print line
+				cache =  line.split()
+				cache = int(cache[0])
+				if cache > 59:
+					w.balloon_tip("Hard disk temperature exceeds critical values!", "You should decrease the APM Level")
+					if cool == 0:
+						try:
+							setapm(1)
+						except:
+							pass
+						break
+			else:
+				pass
+		else:
+			break
+	return;
+	try:
+		cmd = """powershell Get-WmiObject -Class Win32_PerfFormattedData_Counters_ThermalZoneInformation |Select-Object Name,Temperature"""
+		count2 = 0
+		b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+		while True:
+			line = b.stdout.readline()
+			if line != '':
+				count2 += 1
+				if count2 == 4:
+					cache =  line.split()
+					cache = int(cache[1])
+					cache = cache - 273
+					if cache > 65:
+						w.balloon_tip("Motherboard temperature exceeds critical values!", "Cool down")
+						break
+				else:
+					pass
+			else:
+				break
+		return;
+	except:
+		cmd = 'cmd /c wmic /namespace:\\root\cimv2 PATH Win32_PerfFormattedData_Counters_ThermalZoneInformation get Temperature'.split()
+		count2 = 0
+		b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+		time.sleep(1)
+		while True:
+			line = b.stdout.readline()
+			if line != '':
+				count2 += 1
+				if count2 == 2:
+					print line
+					cache =  line.split()
+					cache = int(cache[0])
+					cache = cache - 273
+					if cache > 59:
+						w.balloon_tip("Hard disk temperature exceeds critical values!", "Decrease lifetime of harddisk")
+				else:
+					pass
+			else:
+				break
+		return;
+	
 
 #Simple way of port checking .
 def checkport(port):
@@ -665,16 +762,17 @@ def checkport(port):
 		if errorcode==errno.EADDRINUSE:
 			return 1
 		else:
-			w.balloon_tip("Unknow Port Error occured", "Sorry")
+			w.balloon_tip("Unknow Port Error occured", str(port))
+			return 1
 		
 def checkapp():
-	if checkport(20) and any('FTP' not in s for s in appc):
+	if checkport(20) and not any('FTP' in s for s in appc):
 		appc.extend(['FTP'])
 		w.balloon_tip("FTP Server", "Port 20 in use!")
-	if checkport(22) and any('SSH' not in s for s in appc):
+	if checkport(22) and not any('SSH' in s for s in appc):
 		appc.extend(['SSH'])
 		w.balloon_tip("SSH found", "Port 22 in use!")
-	if checkport(53) and any('DNS' not in s for s in appc):
+	if checkport(53) and not any('DNS' in s for s in appc):
 		appc.extend(['DNS'])
 		w.balloon_tip("DNS Server", "Port 53 in use!")
 	if (checkport(80) or checkport(443)) and not (any('HTTP' in s for s in appc)):
@@ -684,30 +782,31 @@ def checkapp():
 		icmp()
 		dsmb()
 		dnetbios()
-	if checkport(161) and any('SNMP' not in s for s in appc):
+	if checkport(161) and not any('SNMP' in s for s in appc):
 		appc.extend(['SNMP'])
 		w.balloon_tip("SNMP Server found", "Port 161 in use!")
 		snmp()
-	if checkport(445) and any('microsoft-ds' not in s for s in appc):
-		appc.extend(['microsoft-ds'])
-		w.balloon_tip("microsoft-ds found", "Port 445 in use!")
-	if checkport(554) and any('rtsp' not in s for s in appc):
+	#if checkport(445) and not any('microsoft-ds' in s for s in appc):
+	#	appc.extend(['microsoft-ds'])
+	#	w.balloon_tip("microsoft-ds found", "Port 445 in use!")
+	if checkport(554) and not any('rtsp' in s for s in appc):
 		appc.extend(['rtsp'])
 		w.balloon_tip("rtsp found", "Port 554 in use!")
-	if checkport(5357) and any('wsdapi' not in s for s in appc):
-		appc.extend(['wsdapi'])
-		w.balloon_tip("wsdapi found", "Port 5357 in use!")
+	#if checkport(5357) and not any('wsdapi' in s for s in appc):
+	#	appc.extend(['wsdapi'])
+	#	w.balloon_tip("wsdapi found", "Port 5357 in use!")
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
 #w.balloon_tip("Title for popup", "This is the popup's message")
-#time.sleep(999)
 #checknfts()
+print "1"
 w = WindowsBalloonTip()
+#time.sleep(999)
 initials()
 try:
-	os.chdir(r'D:\Snort\log')
+	os.chdir(fname)
 except:
 	Tk().withdraw()
 	fname = askdirectory()
@@ -716,6 +815,7 @@ except:
 			fname=fname.replace(ch,"\\")
 	print fname
 	os.chdir(fname)
+print "2"
 try:
 	while run:
 		if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
