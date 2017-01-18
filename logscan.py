@@ -1,14 +1,18 @@
 # w.balloon_tip by https://gist.github.com/boppreh
+# ram by https://www.blog.pythonlibrary.org/2010/01/27/getting-windows-system-information-with-python/
+# http://code.google.com/p/psutil/
 
 from __future__ import division
-import mmap,os,os.path,sys,subprocess,time,socket,struct,win32con
+import mmap,os,os.path,sys,subprocess,time,socket,struct,win32con,platform,re,pythoncom,ctypes
+#import pyHook as hook
 from subprocess import Popen
-from Tkinter import *
+import Tkinter
 from tkFileDialog import askopenfilename
 from tkFileDialog  import askdirectory  
 import _winreg as wreg
 from win32api import *
 from win32gui import *
+from win32com.client import GetObject
 import errno
 PATH= 'alert.ids'
 fname = r'D:\Snort\log'
@@ -49,8 +53,21 @@ str31 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Servi
 str32 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" SMB2 -Type DWORD -Value 0 -Force'
 str33 = 'netsh int tcp set global dca=enabled'
 str34 = 'netsh int tcp set global rsc=enabled'
-x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True
+str35 = '\\SOFTWARE\\Microsoft\\Direct3D\\'
+str36 = '\\SOFTWARE\\Microsoft\\DirectDraw\\'
+str37 = '\\SOFTWARE\\Microsoft\\Direct3D\\Drivers\\'
+str38 = '\\SOFTWARE\\WOW6432Node\\Microsoft\\Direct3D\\'
+str39 = '\\SOFTWARE\\WOW6432Node\\Microsoft\\DirectDraw\\'
+x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;
+cpuinfo = is_windows = somestring = ''
 DETACHED_PROCESS = 0x00000008
+
+bits = platform.architecture()[0]
+is_windows = platform.system().lower() == 'windows'
+
+window = 0                                             # glut window number
+width, height = 500, 400                               # window size
+
 
 class WindowsBalloonTip:
     def __init__(self):
@@ -92,7 +109,306 @@ class WindowsBalloonTip:
         Shell_NotifyIcon(NIM_DELETE, nid)
         PostQuitMessage(0) # Terminate the app.
 
+def get_cpu_info_from_registry():
+	'''
+	FIXME: Is missing many of the newer CPU flags like sse3
+	Returns the CPU info gathered from the Windows Registry. Will return None if
+	not on Windows.
+	'''
+	global is_windows
+	global cpuinfo
 
+	# Just return None if not on Windows
+	if not is_windows:
+		return None
+
+	try:
+		import _winreg as winreg
+	except :
+		import winreg
+
+	# Get the CPU arch and bits
+	key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
+	raw_arch_string = winreg.QueryValueEx(key, "PROCESSOR_ARCHITECTURE")[0]
+	winreg.CloseKey(key)
+	arch, bits = parse_arch(raw_arch_string)
+
+	# Get the CPU MHz
+	#key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Hardware\Description\System\CentralProcessor\0")
+	#processor_hz = winreg.QueryValueEx(key, "~Mhz")[0]
+	#winreg.CloseKey(key)
+	#processor_hz = to_hz_string(processor_hz)
+
+	# Get the CPU name
+	key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Hardware\Description\System\CentralProcessor\0")
+	processor_brand = winreg.QueryValueEx(key, "ProcessorNameString")[0]
+	x = ['i3','i5','i7','Xeon','Core 2','Itanium','duo']
+	if any(s in l for l in x for s in processor_brand):
+		tune()
+	winreg.CloseKey(key)
+
+	# Get the CPU vendor id
+	key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Hardware\Description\System\CentralProcessor\0")
+	vendor_id = winreg.QueryValueEx(key, "VendorIdentifier")[0]
+	winreg.CloseKey(key)
+
+	# Get the CPU features
+	key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Hardware\Description\System\CentralProcessor\0")
+	feature_bits = winreg.QueryValueEx(key, "FeatureSet")[0]
+	winreg.CloseKey(key)
+
+	def is_set(bit):
+		mask = 0x80000000 >> bit
+		retval = mask & feature_bits > 0
+		return retval
+
+	# http://en.wikipedia.org/wiki/CPUID
+	# http://unix.stackexchange.com/questions/43539/what-do-the-flags-in-proc-cpuinfo-mean
+	# http://www.lohninger.com/helpcsuite/public_constants_cpuid.htm
+	flags = {
+		'fpu' : is_set(0), # Floating Point Unit
+		'vme' : is_set(1), # V86 Mode Extensions
+		'de' : is_set(2), # Debug Extensions - I/O breakpoints supported
+		'pse' : is_set(3), # Page Size Extensions (4 MB pages supported)
+		'tsc' : is_set(4), # Time Stamp Counter and RDTSC instruction are available
+		'msr' : is_set(5), # Model Specific Registers
+		'pae' : is_set(6), # Physical Address Extensions (36 bit address, 2MB pages)
+		'mce' : is_set(7), # Machine Check Exception supported
+		'cx8' : is_set(8), # Compare Exchange Eight Byte instruction available
+		'apic' : is_set(9), # Local APIC present (multiprocessor operation support)
+		'sepamd' : is_set(10), # Fast system calls (AMD only)
+		'sep' : is_set(11), # Fast system calls
+		'mtrr' : is_set(12), # Memory Type Range Registers
+		'pge' : is_set(13), # Page Global Enable
+		'mca' : is_set(14), # Machine Check Architecture
+		'cmov' : is_set(15), # Conditional MOVe instructions
+		'pat' : is_set(16), # Page Attribute Table
+		'pse36' : is_set(17), # 36 bit Page Size Extensions
+		'serial' : is_set(18), # Processor Serial Number
+		'clflush' : is_set(19), # Cache Flush
+		#'reserved1' : is_set(20), # reserved
+		'dts' : is_set(21), # Debug Trace Store
+		'acpi' : is_set(22), # ACPI support
+		'mmx' : is_set(23), # MultiMedia Extensions
+		'fxsr' : is_set(24), # FXSAVE and FXRSTOR instructions
+		'sse' : is_set(25), # SSE instructions
+		'sse2' : is_set(26), # SSE2 (WNI) instructions
+		'ss' : is_set(27), # self snoop
+		#'reserved2' : is_set(28), # reserved
+		'tm' : is_set(29), # Automatic clock control
+		'ia64' : is_set(30), # IA64 instructions
+		'3dnow' : is_set(31) # 3DNow! instructions available
+	}
+
+	# Get a list of only the flags that are true
+	flags = [k for k, v in flags.items() if v]
+	flags.sort()
+
+	return {
+	#'vendor_id' : vendor_id,
+	#'brand' : processor_brand,
+	#'hz' : to_friendly_hz(processor_hz, 6),
+	#'raw_hz' : to_raw_hz(processor_hz, 6),
+	#'arch' : arch,
+	#'bits' : bits,
+	#'count' : multiprocessing.cpu_count(),
+	#'raw_arch_string' : raw_arch_string,
+
+	#'l2_cache_size' : 0,
+	#'l2_cache_line_size' : 0,
+	#'l2_cache_associativity' : 0,
+
+	#'stepping' : 0,
+	#'model' : 0,
+	#'family' : 0,
+	#'processor_type' : 0,
+	#'extended_model' : 0,
+	#'extended_family' : 0,
+	#'flags' : flags
+	}
+	
+def parse_arch(raw_arch_string):
+	arch, bits = None, None
+	raw_arch_string = raw_arch_string.lower()
+	
+	
+	# X86
+	#	if re.match('^i\d86$|^x86$|^x86_32$|^i86pc$|^ia32$|^ia-32$|^bepc$', raw_arch_string):
+	x = ['86','i86pc','ia32','ia-32']
+	if any(s in l for l in raw_arch_string for s in x):
+		arch = 'X86_32'
+		bits = 32
+	#elif re.search('^x64$|^x86_64$|^x86_64t$|^i686-64$|^amd64$|^ia64$|^ia-64$', raw_arch_string):
+	x = ['86_64','x64','i686-64','amd64','ia64','ia-64']
+	if any(s in l for l in raw_arch_string for s in x):
+		arch = 'X86_64'
+		bits = 64
+	# ARM
+	#elif re.search('^armv8-a$', raw_arch_string):
+	if "armv8" in raw_arch_string: 
+		arch = 'ARM_8'
+		bits = 64
+	#elif re.search('^armv7$|^armv7[a-z]$|^armv7-[a-z]$', raw_arch_string):
+	elif "armv7" in raw_arch_string: 
+		arch = 'ARM_7'
+		bits = 32
+	#elif re.search('^armv8$|^armv8[a-z]$|^armv8-[a-z]$', raw_arch_string):
+	elif "armv8" in raw_arch_string: 
+		arch = 'ARM_8'
+		bits = 32
+	# PPC
+	#elif re.search('^ppc32$|^prep$|^pmac$|^powermac$', raw_arch_string):
+	elif "ppc32" in raw_arch_string: 	
+		arch = 'PPC_32'
+		bits = 32
+	#elif re.search('^powerpc$|^ppc64$', raw_arch_string):
+	elif "ppc64" in raw_arch_string: 
+		arch = 'PPC_64'
+		bits = 64
+	# SPARC
+	#elif re.search('^sparc32$|^sparc$', raw_arch_string):
+	elif "sparc32" in raw_arch_string: 
+		arch = 'SPARC_32'
+		bits = 32
+	#elif re.search('^sparc64$|^sun4u$|^sun4v$', raw_arch_string):
+	elif "sun4v" in raw_arch_string: 
+		arch = 'SPARC_64'
+		bits = 64
+
+	return (arch, bits)
+	
+def getac():
+	class PowerClass(Structure):
+		_fields_ = [('ACLineStatus', c_byte),
+				('BatteryFlag', c_byte),
+				('BatteryLifePercent', c_byte),
+				('Reserved1',c_byte),
+				('BatteryLifeTime',c_ulong),
+				('BatteryFullLifeTime',c_ulong)]    
+	powerclass = PowerClass()
+	result = windll.kernel32.GetSystemPowerStatus(byref(powerclass))
+	return powerclass.BatteryLifePercent
+
+def ram():
+	kernel32 = ctypes.windll.kernel32
+	c_ulong = ctypes.c_ulong
+	class MEMORYSTATUS(ctypes.Structure):
+		_fields_ = [
+			('dwLength', c_ulong),
+			('dwMemoryLoad', c_ulong),
+			('dwTotalPhys', c_ulong),
+			('dwAvailPhys', c_ulong),
+			('dwTotalPageFile', c_ulong),
+			('dwAvailPageFile', c_ulong),
+			('dwTotalVirtual', c_ulong),
+			('dwAvailVirtual', c_ulong)
+		]
+ 
+	memoryStatus = MEMORYSTATUS()
+	memoryStatus.dwLength = ctypes.sizeof(MEMORYSTATUS)
+	kernel32.GlobalMemoryStatus(ctypes.byref(memoryStatus))
+	mem = memoryStatus.dwTotalPhys / (1024*1024)
+	availRam = memoryStatus.dwAvailPhys / (1024*1024)
+	if availRam < 512:
+		w.balloon_tip("Low Memory available", "Expect low performance")
+	if mem >= 1000:
+		mem = mem/1000
+		totalRam = str(mem) + ' GB'
+	else:
+#        mem = mem/1000000
+		totalRam = str(mem) + ' MB'
+	#return (totalRam, availRam)
+	return
+	
+def errorg(argument):
+	switcher = {
+		1: "This device is not configured correctly.",
+		2: "Windows cannot load the driver for this device.",
+		3: "The driver for this device might be corrupted, or your system may be running low on memory or other resources.",
+		4: "This device is not working properly. One of its drivers or your registry might be corrupted.",
+		5: "The driver for this device needs a resource that Windows cannot manage.",
+		6: "The boot configuration for this device conflicts with other devices.",
+		7: "Cannot filter.",
+		8: "The driver loader for the device is missing.",
+		9: "This device is not working properly because the controlling firmware is reporting the resources for the device incorrectly.",
+		10: "This device cannot start.",
+		11: "This device failed.",
+		12: "This device cannot find enough free resources that it can use.",
+		13: "Windows cannot verify this device's resources",
+		14: "This device cannot work properly until you restart your computer.",
+		15: "This device is not working properly because there is probably a re-enumeration problem. ",
+		16: "Windows cannot identify all the resources this device uses.",
+		17: "This device is asking for an unknown resource type.",
+		18: "Reinstall the drivers for this device.",
+		19: "Failure using the VxD loader.",
+		20: "Your registry might be corrupted.",
+		21: "System failure: Try changing the driver for this device. If that does not work, see your hardware documentation. Windows is removing this device.",
+		22: "This device is disabled.",
+		23: "System failure: Try changing the driver for this device. If that doesn't work, see your hardware documentation. ",
+		24: "This device is not present, is not working properly, or does not have all its drivers installed.",
+		25: "Windows is still setting up this device.",
+		26: "Windows is still setting up this device.",
+		27: "This device does not have valid log configuration.",
+		28: "The drivers for this device are not installed.",
+		29: "This device is disabled because the firmware of the device did not give it the required resources. ",
+		30: "This device is using an Interrupt Request (IRQ) resource that another device is using.",
+		31: "This device is not working properly because Windows cannot load the drivers required for this device.",
+		}
+	return switcher.get(argument, '')
+
+def gpustatuserror(argument):
+    switcher = {
+		"Error": " Error indicates that this element might be OK but that another element, on which it is dependent, is in error",
+		"Degraded": "Degraded indicates the ManagedElement is functioning below normal.",
+		"Unknown": " indicates the implementation is in general capable of returning this property, but is unable to do so at this time.",
+		"Pred Fail": "Predictive Failure indicates that an element is functioning normally but a failure is predicted in the near future. ",
+		"Starting": "Starting indicates that the element is in the process of going to an Enabled state.",
+		"Stopping": " Stopping is the value assigned to OperationalStatus, then this property may contain an explanation as to why an object is being stopped.",
+		"Service": "In Service describes an element that is in service and operational.",
+		"Stressed": "Stressed states are overload, overheated, and so on.",
+		"NonRecover": "Non-Recoverable Error indicates that this element is in an error condition that requires human intervention.",
+		"No Contact": "No Contact indicates that the monitoring system has knowledge of this element, but has never been able to establish communications with it.",
+		"Lost Comm": "Lost Communication indicates that the ManagedSystem Element is known to exist and has been contacted successfully in the past, but is currently unreachable.",
+    }
+    return switcher.get(argument, "")
+	
+def getgpu():
+	WMI = GetObject('winmgmts:')
+	for battery in WMI.InstancesOf('Win32_VideoController'):
+		if battery.ConfigManagerErrorCode != 0:
+			w.balloon_tip("GPU Error occured", errorg(battery.ConfigManagerErrorCode))
+		
+def getgpustatus():
+	WMI = GetObject('winmgmts:')
+	for battery in WMI.InstancesOf('Win32_VideoController'):
+		print gpustatuserror(battery.Status)
+		
+def available_cpu_count():
+    try:
+        import psutil
+        return psutil.cpu_count()   # psutil.NUM_CPUS on old versions
+    except (ImportError, AttributeError):
+        pass
+
+    # Windows
+    try:
+        res = int(os.environ['NUMBER_OF_PROCESSORS'])
+
+        if res > 0:
+            return res
+    except (KeyError, ValueError):
+        pass
+
+        res = 0
+        while '\ncpu' + str(res) + ':' in dmesg:
+            res += 1
+
+        if res > 0:
+            return res
+    except OSError:
+        pass
+    raise Exception('Can not determine number of CPUs on this system')
+	
 def lookup(addr):
 	try:
 		return socket.gethostbyaddr(addr)
@@ -144,6 +460,16 @@ def dnscheck():
 		else:
 			w.balloon_tip("Your DNS Cache is poisened!", "Disconnect immediately!")
 		
+#Give the size of the temp folder back		
+def get_size(start_path = '.'):
+	os.chdir('C:\\temp')
+	total_size = 0
+	for dirpath, dirnames, filenames in os.walk(start_path):
+		for f in filenames:
+			fp = os.path.join(dirpath, f)
+			total_size += os.path.getsize(fp)
+	return total_size
+		
 def synflood():
 	os.system(str8)
 	winreg(name,'SynAttackProtect',0x00000002,1,str4)
@@ -181,7 +507,22 @@ def tcpdrop():
 def tcpdrops():
 	winreg(name,'TcpMaxConnectRetransmissions',0x00000004,1,str4)
 	winreg(name,'TcpMaxDataRetransmissions',0x0000000A,1,str4)
-	winreg(name,'KeepAliveInterval',0x000007D0,1,str4)	
+	winreg(name,'KeepAliveInterval',0x000007D0,1,str4)
+	
+def directxs():
+	winreg(name,'PSGPNumThreads',available_cpu_count(),1,str35)
+	
+def directxoff():
+	winreg(name,'EmulationOnly',0x00000001,1,str36)
+	winreg(name,'SoftwareOnly',0x00000001,1,str37)
+	winreg(name,'EmulationOnly',0x00000001,1,str38)
+	winreg(name,'SoftwareOnly',0x00000001,1,str39)
+	
+def directxon():
+	winreg(name,'EmulationOnly',0x00000000,1,str36)
+	winreg(name,'SoftwareOnly',0x00000000,1,str37)
+	winreg(name,'EmulationOnly',0x00000000,1,str38)
+	winreg(name,'SoftwareOnly',0x0000000,1,str39)
 
 def tune():
 	os.system(str15)
@@ -417,9 +758,9 @@ def nslookupc():
 		while True:
 			response = requests.get('http://www.google.com')
 			if response.status_code == requests.codes.ok:
-				pass
+				return
 			else:
-				pass
+				return
 			break
 		return;
 	return;
@@ -562,11 +903,13 @@ def everything():
 	ipstatsc()
 	pingc()
 	checkapp()
+	getgpu()
 	print "4"
 
 def initials():
 	global fname
 	nslookupc()
+	info = get_cpu_info_from_registry()
 	
 # Disk check part	Nothing interesting!
 def fsutilc(string):
@@ -680,6 +1023,28 @@ def setapm(level):
 	os.chdir(fname)
 	cool = 1
 	
+def setwc(level):
+	if level == 0:
+		cmd = 'hdparm.exe -W0 hda'.split()
+		cmd1 = 'hdparm.exe -W0 hdb'.split()
+	else:
+		cmd = 'hdparm.exe -W1 hda'.split()
+		cmd1 = 'hdparm.exe -W1 hdb'.split()
+	try:
+		os.chdir(r'C:\Program Files (x86)\hdparm')
+	except:
+		Tk().withdraw()
+		hdparmd = askdirectory()
+		for ch in ['//']:
+			if ch in hdparmd:
+				hdparmd=hdparmd.replace(ch,"\\")
+		print fname
+		os.chdir(hdparmd)
+	subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	subprocess.Popen(cmd1, stdout=subprocess.PIPE, stderr=None)
+	w.balloon_tip("Disabled Write Cache", "Finish")
+	os.chdir(fname)
+	
 #except seems not really to work!
 def checktemp():
 	cmd = """powershell  Get-PhysicalDIsk | Get-StorageReliabilityCounter |  Select-Object Temperature"""
@@ -782,6 +1147,7 @@ def checkapp():
 		icmp()
 		dsmb()
 		dnetbios()
+		setwc(0)
 	if checkport(161) and not any('SNMP' in s for s in appc):
 		appc.extend(['SNMP'])
 		w.balloon_tip("SNMP Server found", "Port 161 in use!")
@@ -795,13 +1161,13 @@ def checkapp():
 	#if checkport(5357) and not any('wsdapi' in s for s in appc):
 	#	appc.extend(['wsdapi'])
 	#	w.balloon_tip("wsdapi found", "Port 5357 in use!")
+	
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
 #w.balloon_tip("Title for popup", "This is the popup's message")
 #checknfts()
-print "1"
 w = WindowsBalloonTip()
 #time.sleep(999)
 initials()
