@@ -53,21 +53,21 @@ str31 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Servi
 str32 = 'powershell Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" SMB2 -Type DWORD -Value 0 -Force'
 str33 = 'netsh int tcp set global dca=enabled'
 str34 = 'netsh int tcp set global rsc=enabled'
-str35 = '\\SOFTWARE\\Microsoft\\Direct3D\\'
-str36 = '\\SOFTWARE\\Microsoft\\DirectDraw\\'
-str37 = '\\SOFTWARE\\Microsoft\\Direct3D\\Drivers\\'
-str38 = '\\SOFTWARE\\WOW6432Node\\Microsoft\\Direct3D\\'
-str39 = '\\SOFTWARE\\WOW6432Node\\Microsoft\\DirectDraw\\'
-x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;
+str35 = 'SOFTWARE\\Microsoft\\Direct3D\\'
+str36 = 'SOFTWARE\\Microsoft\\DirectDraw\\'
+str37 = 'SOFTWARE\\Microsoft\\Direct3D\\Drivers\\'
+str38 = 'SOFTWARE\\WOW6432Node\\Microsoft\\Direct3D\\'
+str39 = 'SOFTWARE\\WOW6432Node\\Microsoft\\DirectDraw\\'
+str40 = 'CurrentControlSet\\Control\\GraphicsDrivers\\'
+str41 = 'SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters\\'
+x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;arch = ''
 cpuinfo = is_windows = somestring = ''
 DETACHED_PROCESS = 0x00000008
 
 bits = platform.architecture()[0]
 is_windows = platform.system().lower() == 'windows'
 
-window = 0                                             # glut window number
-width, height = 500, 400                               # window size
-
+test_key_name = "SOFTWARE\\Python Registry Test Key - Delete Me"
 
 class WindowsBalloonTip:
     def __init__(self):
@@ -118,14 +118,16 @@ def get_cpu_info_from_registry():
 	global is_windows
 	global cpuinfo
 
+
 	# Just return None if not on Windows
 	if not is_windows:
 		return None
-
+	
 	try:
 		import _winreg as winreg
 	except :
 		import winreg
+		
 
 	# Get the CPU arch and bits
 	key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
@@ -228,19 +230,19 @@ def get_cpu_info_from_registry():
 	}
 	
 def parse_arch(raw_arch_string):
+	global arch
 	arch, bits = None, None
 	raw_arch_string = raw_arch_string.lower()
 	
-	
 	# X86
 	#	if re.match('^i\d86$|^x86$|^x86_32$|^i86pc$|^ia32$|^ia-32$|^bepc$', raw_arch_string):
-	x = ['86','i86pc','ia32','ia-32']
-	if any(s in l for l in raw_arch_string for s in x):
+	z = ['86','i86pc','ia32','ia-32']
+	if any(raw_arch_string in s for s in z):
 		arch = 'X86_32'
 		bits = 32
 	#elif re.search('^x64$|^x86_64$|^x86_64t$|^i686-64$|^amd64$|^ia64$|^ia-64$', raw_arch_string):
-	x = ['86_64','x64','i686-64','amd64','ia64','ia-64']
-	if any(s in l for l in raw_arch_string for s in x):
+	z = ['86_64','x64','i686-64','amd64','ia64','ia-64','AMD64']
+	if any(raw_arch_string in s for s in z):
 		arch = 'X86_64'
 		bits = 64
 	# ARM
@@ -370,18 +372,21 @@ def gpustatuserror(argument):
 		"No Contact": "No Contact indicates that the monitoring system has knowledge of this element, but has never been able to establish communications with it.",
 		"Lost Comm": "Lost Communication indicates that the ManagedSystem Element is known to exist and has been contacted successfully in the past, but is currently unreachable.",
     }
-    return switcher.get(argument, "")
+    return switcher.get(argument, "None")
 	
 def getgpu():
 	WMI = GetObject('winmgmts:')
 	for battery in WMI.InstancesOf('Win32_VideoController'):
 		if battery.ConfigManagerErrorCode != 0:
 			w.balloon_tip("GPU Error occured", errorg(battery.ConfigManagerErrorCode))
+			getgpustatus()
 		
 def getgpustatus():
 	WMI = GetObject('winmgmts:')
 	for battery in WMI.InstancesOf('Win32_VideoController'):
-		print gpustatuserror(battery.Status)
+		if battery.Status == "Lost Comm":
+			gputimeout()
+			
 		
 def available_cpu_count():
     try:
@@ -511,18 +516,36 @@ def tcpdrops():
 	
 def directxs():
 	winreg(name,'PSGPNumThreads',available_cpu_count(),1,str35)
+	winreg(name,'PSGPNumThreads',available_cpu_count(),1,str35)
 	
 def directxoff():
+	winreg(name,'DisablePSGP',0x00000001,1,str35)
 	winreg(name,'EmulationOnly',0x00000001,1,str36)
 	winreg(name,'SoftwareOnly',0x00000001,1,str37)
-	winreg(name,'EmulationOnly',0x00000001,1,str38)
-	winreg(name,'SoftwareOnly',0x00000001,1,str39)
+	if arch == "X86_64":
+		winreg(name,'EmulationOnly',0x00000001,1,str38)
+		winreg(name,'SoftwareOnly',0x00000001,1,str39)
+		winreg(name,'DisablePSGP',0x00000001,1,str38)
 	
 def directxon():
+	winreg(name,'DisablePSGP',0x00000000,1,str35)
 	winreg(name,'EmulationOnly',0x00000000,1,str36)
 	winreg(name,'SoftwareOnly',0x00000000,1,str37)
-	winreg(name,'EmulationOnly',0x00000000,1,str38)
-	winreg(name,'SoftwareOnly',0x0000000,1,str39)
+	if arch == "X86_64":
+		winreg(name,'EmulationOnly',0x00000000,1,str38)
+		winreg(name,'SoftwareOnly',0x0000000,1,str39)
+		winreg(name,'DisablePSGP',0x00000000,1,str38)
+		
+def gputimeout():
+	winreg(name,'TdrDelay',0x00000014,1,str40)
+	
+def lanmantune():
+	winreg(name,'SizReqBuf',0x0000ffff,1,str41)
+	
+def tcpinitialrtt(value):
+	cache =  "".join(['SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\Interfaces\\',networkid()])
+	print cache
+	winreg(name,'TCPInitialRtt',value,1,cache)
 
 def tune():
 	os.system(str15)
@@ -530,8 +553,9 @@ def tune():
 	os.system(str34)
 
 def winreg(dnsname, regn, rvalue,rpath,str):
+	print dnsname
 	if not dnsname:
-		regrule = str4
+		regrule = str
 	else:
 		regrule = "".join((str3, dnsname))
 	if rpath == 0:
@@ -539,7 +563,9 @@ def winreg(dnsname, regn, rvalue,rpath,str):
 	else:
 		key = wreg.CreateKey(wreg.HKEY_LOCAL_MACHINE, regrule)
 	wreg.SetValueEx(key, regn, 0, wreg.REG_DWORD, rvalue)
-
+	wreg.CloseKey(key)
+	key.Close()
+	
 
 def firewallr():
 	global counter
@@ -1113,7 +1139,30 @@ def checktemp():
 				break
 		return;
 	
+#Read the  HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*
+def networkid():
+	cmd = """powershell "Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter IPEnabled=TRUE -ComputerName . | Select-Object -Property [a-z]* -ExcludeProperty IPX*,WINS* | where { $_.InterfaceIndex -eq '7'} | Sort-Object GatewayCostMetric | Select-Object SettingID"""
+	cache = cmd.split()
+	cache[19] =  "".join([ipowershell(1),'}'])
+	cache = " ".join(cache)
+	count2 = 0
+	c = subprocess.Popen(cache, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = c.stdout.readline()
+		if line != '':
+			count2 += 1
+			if count2 == 4:
+				cache =  line.split()
+				cache = cache[0]
+				return cache
+			else:
+				pass
+		else:
+			break
+	return;
 
+	
+	
 #Simple way of port checking .
 def checkport(port):
 	try:
@@ -1134,6 +1183,7 @@ def checkapp():
 	if checkport(20) and not any('FTP' in s for s in appc):
 		appc.extend(['FTP'])
 		w.balloon_tip("FTP Server", "Port 20 in use!")
+		lanmantune()
 	if checkport(22) and not any('SSH' in s for s in appc):
 		appc.extend(['SSH'])
 		w.balloon_tip("SSH found", "Port 22 in use!")
@@ -1169,6 +1219,7 @@ def checkapp():
 #w.balloon_tip("Title for popup", "This is the popup's message")
 #checknfts()
 w = WindowsBalloonTip()
+#getgpustatus()	
 #time.sleep(999)
 initials()
 try:
