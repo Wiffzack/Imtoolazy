@@ -19,13 +19,13 @@ Monitors S.M.A.R.T status (Inform if device status is bad)
 
 Observe GPU status(*Require wddm compatible driver)
 
-*Instruction(Requirements):
+
+***Instruction(Requirements):**
 
 Require : Powershell 2.0>=
 
 Install Snort :
 https://www.snort.org/downloads/snort/Snort_2_9_9_0_Installer.exe
-
 Configure Snort - Add rules (Copy in the rules Folder in the Snort folder)
 Dont forget to include them in the snort.conf :  $RULE_PATH/example.rules
 
