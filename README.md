@@ -6,6 +6,7 @@ This is necessary because it is a simple alternative to get admin
 rights , which are required to add Rules to the Windows Firewall.
 
 **Some functions:**
+
 Connection Test(Check network latency and give feedback if something is not right)
 
 Reverse Lookup against DNS Poising (easy to bypass but better than nothing)
