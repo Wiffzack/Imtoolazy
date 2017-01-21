@@ -3,7 +3,7 @@
 # http://code.google.com/p/psutil/
 
 from __future__ import division
-import mmap,os,os.path,sys,subprocess,time,socket,struct,win32con,platform,re,pythoncom,ctypes
+import mmap,os,os.path,sys,subprocess,time,socket,struct,win32con,platform,re,pythoncom,ctypes,win32ui,math
 #import pyHook as hook
 from subprocess import Popen
 import Tkinter
@@ -16,8 +16,13 @@ from win32com.client import GetObject
 import errno
 PATH= 'alert.ids'
 fname = r'D:\Snort\log'
-line_number = line_num = counter = counterc = problemc = cool = 0
+line_number = line_num = counter = counterc = problemc = cool = startm = endm = 0
+# Different times for ping
 ldp = 0.0;cv = 10.0;cv2 = 5.0;aptn = 15
+# Temperatur k= 1/t*ln(Ta-Tu/(Tn-Tu)) -> T = Tu*(Ta-Tu)*e^-kt
+# System depending constant
+Tu = 20;Ta = 25;Tn = t = 0
+k = -0.00878084723396
 compare = ['[**]'];
 str1 = ("cmd /c netsh advfirewall firewall add rule name=rule1 dir=in action=block protocol=any remoteip=")
 str2 = ("127.0.0.1 ")
@@ -60,14 +65,21 @@ str38 = 'SOFTWARE\\WOW6432Node\\Microsoft\\Direct3D\\'
 str39 = 'SOFTWARE\\WOW6432Node\\Microsoft\\DirectDraw\\'
 str40 = 'CurrentControlSet\\Control\\GraphicsDrivers\\'
 str41 = 'SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters\\'
+str42 = 'netsh int tcp set global initialRto=1000'
+str43 = 'netsh interface ip delete arpcache'
 x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;arch = ''
+setmod = 2
 cpuinfo = is_windows = somestring = ''
 DETACHED_PROCESS = 0x00000008
 
 bits = platform.architecture()[0]
 is_windows = platform.system().lower() == 'windows'
 
-test_key_name = "SOFTWARE\\Python Registry Test Key - Delete Me"
+IP_MTU_DISCOVER   = 10
+IP_PMTUDISC_DONT  =  0  # Never send DF frames.
+IP_PMTUDISC_WANT  =  1  # Use per route hints.
+IP_PMTUDISC_DO    =  2  # Always DF.
+IP_PMTUDISC_PROBE =  3  # Ignore dst pmtu.
 
 class WindowsBalloonTip:
     def __init__(self):
@@ -544,10 +556,51 @@ def lanmantune():
 	
 def tcpinitialrtt(value):
 	cache =  "".join(['SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\Interfaces\\',networkid()])
-	print cache
 	winreg(name,'TCPInitialRtt',value,1,cache)
+	
+def tcpinitialRto(value):
+	cmd = 'netsh int tcp set global initialRto='
+	cache =  "".join([cmd,str(value)])
+	os.system(cache)
+	
+def tcpackfre(value):
+	cache =  "".join(['SYSTEM\\CurrentControlSet\\Services\\TcpIp\\Parameters\\Interfaces\\',networkid()])
+	winreg(name,'TcpAckFrequency',value,1,cache)
+	
+def DisableDHCPMediaSense():
+	winreg(name,'DisableDHCPMediaSense',0x00000001,1,str4)
+	
+def ArpCacheLife():
+	winreg(name,'ArpCacheLife',0xffffffff,1,str4)
+	winreg(name,'ArpRetryCount',0x00000001,1,str4)
 
+def mtus(value):
+	cmd = 'netsh int ipv4 set subinterface 10 mtu=1472 store=persistent'.split()
+	cmd[5] = arpc()
+	print cmd
+	if value == 0:
+		cmd[6] = 'mtu=576'
+	else:
+		pass
+	cmd = " ".join(cmd)
+	os.system(cmd)
+
+def mtudisc():
+	s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+	hostName = ipowershell(0)
+	Port = 53
+	s.connect((hostName, Port))
+	s.setsockopt(socket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DO)
+	try:
+		s.send('#' * 1473)
+	except socket.error:
+		option = getattr(IN, 'IP_MTU', 14)
+		print 'MTU:', s.getsockopt(socket.IPPROTO_IP, option)
+	else:
+		pass
+	
 def tune():
+	tcpinitialrtt(1000)
 	os.system(str15)
 	os.system(str33)
 	os.system(str34)
@@ -760,6 +813,7 @@ def nslookupc():
 	count2 = 0
 	try:
 		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+		print "error occured here"
 		while True:
 			line = p.stdout.readline()
 			if line != '':
@@ -849,7 +903,7 @@ def redirectc():
 		w.balloon_tip("Redirector Issues Found", "No solution now")
 	return;
 	
-def ipstatsc():
+def ipstatsc(mode):
 	global cv 
 	global cv2
 	cmd = 'netsh interface ipv4 show ipstats'.split()
@@ -867,26 +921,27 @@ def ipstatsc():
 				 cache = line.split()
 				 cache = int(cache[3])
 				 if cache > cv:
-					w.balloon_tip("Transmission error occured", "Next time maybe")
+					#w.balloon_tip("Transmission error occured", "Next time maybe")
 					cv = (cache)
 					print cache
 					print cv
 			if count2 == 10:
 				cache = line.split()
 				reciveddp = int(cache[3])
-				#print reciveddp
 				calc = reciveddp/recdp
-				#print calc
-				if calc > cv2:
-					cv2 = (calc)
-					w.balloon_tip("Drop Rate over 5%", "Your network drop more than 5% of the packets!")
-					ldp = calc
-					#os.system(str19)
-					os.system(str20)
-					os.system(str26)
-					tcpdrop()
-					netviewc()
-					time.sleep(2)
+				print calc
+				if mode == 0:
+					if calc > cv2:
+						cv2 = (calc)
+						w.balloon_tip("Drop Rate over 5%", "Your network drop more than 5% of the packets!")
+						ldp = calc
+						os.system(str20)
+						os.system(str26)
+						tcpdrop()
+						tcpdrops()
+						netviewc()
+				else:
+					return calc
 		else:
 			break
 	return;
@@ -899,26 +954,35 @@ def dlso(command):
 		w.balloon_tip("Large Send Offload ", "Couldnt deactivated")
 	return;
 	
+def dhcpnew():
+	os.system(str11)
+	os.system(str12)
+	
 def diagnose():
 	global problemc
 	problemc += 1
 	if problemc == 3:
-		w.balloon_tip("Network is not working properly", "Start diagnose")
-		os.system(str11)
-		os.system(str12)
+		w.balloon_tip("Network is not working properly", "Start quess the reason")
+		dhcpnew()
 		w.balloon_tip("Release Adresses and try to renew them", "Try to connect: reconnect")
-	else:
-		if problemc == 4:
-			dlso(str24)
-			os.system(str13)
-			os.system(str15)
-			os.system(str16)
-			os.system(str17)
-			if problemc == 5:
-				w.balloon_tip("No Solution found  -> reset TCP", "Good Luck")
-				os.system(str23)
-				if problemc == 6:
-					w.balloon_tip("Im not able to solve this", "Good Luck")
+	if problemc == 4:
+		dlso(str24)
+		os.system(str13)
+		os.system(str15)
+		os.system(str16)
+		os.system(str17)
+		dhcpnew()
+	if problemc == 5:
+		DisableDHCPMediaSense()
+		dhcpnew()
+	if problemc == 6:
+		os.system(str43)
+		dhcpnew()
+	if problemc == 7:
+		w.balloon_tip("No Solution found  -> reset TCP", "Good Luck")
+		os.system(str23)
+	if problemc == 8:
+		w.balloon_tip("Im not able to solve this", "Good Luck")
 	return;
 	
 def everything():
@@ -926,14 +990,17 @@ def everything():
 	checksmart()
 	checktemp()
 	firewallc()
-	ipstatsc()
+	ipstatsc(0)
 	pingc()
 	checkapp()
 	getgpu()
+	checkmode()
 	print "4"
 
 def initials():
 	global fname
+	global startm
+	startm = time.time()
 	nslookupc()
 	info = get_cpu_info_from_registry()
 	
@@ -1071,32 +1138,45 @@ def setwc(level):
 	w.balloon_tip("Disabled Write Cache", "Finish")
 	os.chdir(fname)
 	
-#except seems not really to work!
+# Temperatur change slow no need to check faster
 def checktemp():
-	cmd = """powershell  Get-PhysicalDIsk | Get-StorageReliabilityCounter |  Select-Object Temperature"""
-	count2 = 0
-	b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
-	while True:
-		line = b.stdout.readline()
-		if line != '':
-			count2 += 1
-			if count2 == 4:
-				print line
-				cache =  line.split()
-				cache = int(cache[0])
-				if cache > 59:
-					w.balloon_tip("Hard disk temperature exceeds critical values!", "You should decrease the APM Level")
-					if cool == 0:
-						try:
-							setapm(1)
-						except:
-							pass
-						break
+	global Tn,t,Ta,k,startm,endm
+	endm = time.time()
+	if (endm-startm) > 50:
+		print "Aenderung"
+		print (endm-startm)
+		cmd = """powershell  Get-PhysicalDIsk | Get-StorageReliabilityCounter |  Select-Object Temperature"""
+		count2 = 0
+		b = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+		while True:
+			line = b.stdout.readline()
+			if line != '':
+				count2 += 1
+				if count2 == 4:
+					print line
+					cache =  line.split()
+					cache = int(cache[0])
+					Tn = cache
+					if cache > 45:
+						w.balloon_tip("Hard disk temperature exceeds default values!", "APM Level will set lower")
+						end = (math.log((Ta-Tu)/(59-Tu))/k)
+						w.balloon_tip("Time remaining until temperatur exceed crit values", end)			
+						if cool == 0:
+							try:
+								setapm(1)
+							except:
+								pass
+							break
+				else:
+					pass
 			else:
-				pass
-		else:
-			break
-	return;
+				break
+		cache = 1/(endm-startm)*math.log((Ta-Tu)/(Tn-Tu))
+		k = ((cache+k)/2)
+		print k
+		print (endm-startm)
+		startm = time.time()
+		return;
 	try:
 		cmd = """powershell Get-WmiObject -Class Win32_PerfFormattedData_Counters_ThermalZoneInformation |Select-Object Name,Temperature"""
 		count2 = 0
@@ -1182,11 +1262,11 @@ def checkport(port):
 def checkapp():
 	if checkport(20) and not any('FTP' in s for s in appc):
 		appc.extend(['FTP'])
-		w.balloon_tip("FTP Server", "Port 20 in use!")
+		#w.balloon_tip("FTP Server", "Port 20 in use!")
 		lanmantune()
 	if checkport(22) and not any('SSH' in s for s in appc):
 		appc.extend(['SSH'])
-		w.balloon_tip("SSH found", "Port 22 in use!")
+		#w.balloon_tip("SSH found", "Port 22 in use!")
 	if checkport(53) and not any('DNS' in s for s in appc):
 		appc.extend(['DNS'])
 		w.balloon_tip("DNS Server", "Port 53 in use!")
@@ -1212,6 +1292,40 @@ def checkapp():
 	#	appc.extend(['wsdapi'])
 	#	w.balloon_tip("wsdapi found", "Port 5357 in use!")
 	
+def processExists(processname):
+    tlcall = 'TASKLIST', '/FI', 'imagename eq %s' % processname
+    tlproc = subprocess.Popen(tlcall, shell=True, stdout=subprocess.PIPE)
+    tlout = tlproc.communicate()[0].strip().split('\r\n')
+    if len(tlout) > 1 and processname in tlout[-1]:
+        return True
+    else:
+        return False
+
+# Define Modes -> Example : PowerPoint -> Presentation Mode	, Steam -> Gaming Mode and so on...
+def checkmode():
+	if processExists('steam.exe'):
+		setmodel(0)
+	elif processExists('chrome.exe'):
+		setmodel(1)
+	
+def setmodel(mode):
+	global setmod
+	if mode == 0 and (setmod != 0):
+		#low latency
+		mtus(0)
+		tcpinitialRto(1000)
+		tcpackfre(1)
+		os.system('netsh int tcp set global rsc=disabled')
+		os.system('netsh INT TCP SET GLOBAL AUTOTUNINGLEVEL=experimental')
+		setmod = 0
+	elif mode == 1 and (setmod != 1):
+		#bandwidht
+		mtus(1)
+		tcpinitialRto(3000)
+		tcpackfre(2)
+		os.system('netsh int tcp set global rsc=enabled')
+		os.system('netsh INT TCP SET GLOBAL AUTOTUNINGLEVEL=normal')
+		setmod = 1
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
@@ -1220,6 +1334,8 @@ def checkapp():
 #checknfts()
 w = WindowsBalloonTip()
 #getgpustatus()	
+#tcpinitialrtt(2888)
+#apprun('Chrome')
 #time.sleep(999)
 initials()
 try:
