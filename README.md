@@ -20,7 +20,7 @@ Monitors S.M.A.R.T status (Inform if device status is bad)
 Observe GPU status(*Require wddm compatible driver)
 
 
-***Instruction(Requirements):**
+**Instruction(Requirements):**
 
 Require : Powershell 2.0>=
 
