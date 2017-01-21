@@ -7,10 +7,15 @@ rights , which are required to add Rules to the Windows Firewall.
 
 Some functions:
 Connection Test(Check network latency and give feedback if something is not right)
+
 Reverse Lookup against DNS Poising (easy to bypass but better than nothing)
+
 *Monitors the hard disk temperature(set apm level lower if it exceed 45 degree *Require hdparm)
+
 Default Port Watcher (Example: TCP/IP Stack Hardening if Port 80/443 used,disable Write Cache etc)
+
 Monitors S.M.A.R.T status (Inform if device status is bad)
+
 Observe GPU status(*Require wddm compatible driver)
 
 *Instruction(Requirements):
