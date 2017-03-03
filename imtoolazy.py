@@ -163,7 +163,7 @@ normalmode = 1
 
 # Google Api
 # Please request your own api key !!!
-google_api = 'AIzaSyCZ1H60_jeoasn-BPcUPUk-fYBBrW6VNS0'
+google_api = 'Your own key'
 
 # Disk access times
 last_disk_time = None
