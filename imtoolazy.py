@@ -177,10 +177,10 @@ normalmode = 1
 
 # Google Api
 # Please request your own api key !!!
-google_api = 'AIzaSyCZ1H60_jeoasn-BPcUPUk-fYBBrW6VNS0'
+google_api = 'YourOwn'
 
 # virus_total_apis key
-API_KEY = 'b72865f92cba5aacd661fb32f770a26ed2f80711c3489385c726f6849ff89522'
+API_KEY = 'YourOwn'
 
 # Disk access times
 last_disk_time = None
