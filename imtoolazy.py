@@ -8,6 +8,7 @@ import sys                      # access to basic things like sys.argv
 import os                       # access pathname utilities
 from functools import wraps
 import posixpath
+import win32api
 is_py2 = sys.version[0] == '2'
 if is_py2:
 	try:
@@ -17,7 +18,8 @@ if is_py2:
 		import Tkinter
 		import Queue
 	except ImportError:
-		 os.system('python -m pip install wx')
+		pass
+		#os.system('python -m pip install wx')
 else:
 	try:
 		from tkinter import *
@@ -74,6 +76,7 @@ from urllib import parse as urlparse
 	
 import json
 import hashlib
+import pickle
 import contextlib
 import sqlite3
 import logging
@@ -82,6 +85,13 @@ from gglsbl.protocol import SafeBrowsingApiClient, URL
 from gglsbl.storage import SqliteStorage, ThreatList, HashPrefixList
 from base64 import b64encode, b64decode
 from gglsbl3 import SafeBrowsingList
+from virus_total_apis import PublicApi as VirusTotalPublicApi
+from functools import partial
+from collections import deque
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+import win32evtlog   
 #from gglsbl.utils import to_hex
 	
 
@@ -136,7 +146,7 @@ str36 = 'SOFTWARE\\Microsoft\\DirectDraw\\'
 str37 = 'SOFTWARE\\Microsoft\\Direct3D\\Drivers\\'
 str38 = 'SOFTWARE\\WOW6432Node\\Microsoft\\Direct3D\\'
 str39 = 'SOFTWARE\\WOW6432Node\\Microsoft\\DirectDraw\\'
-str40 = 'CurrentControlSet\\Control\\GraphicsDrivers\\'
+str40 = 'SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers\\'
 str41 = 'SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters\\'
 str42 = 'netsh int tcp set global initialRto=1000'
 str43 = 'netsh interface ip delete arpcache'
@@ -147,7 +157,11 @@ str47 = 'powershell Set-NetAdapterAdvancedProperty -Name * -RegistryKeyword "Cts
 str48 = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\policies\\Explorer\\'
 str49 = 'System\\CurrentControlSet\\Services\\MRXSmb\\Parameters\\'
 str50 = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\explorer\\SCAPI\\'
-x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;arch = '';ose = '';powercfgl = [];
+str51 = 'System\\CurrentControlSet\\Control\\Processor\\'
+str52 = 'SYSTEM\\CurrentControlSet\\Services\\i8042prt\\Parameters\\'
+str53 = 'SOFTWARE\\Policies\\Microsoft\\Windows\\BITS\\'
+x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;arch = '';
+ose = '';powercfgl = [];md5 = [];topprocess = [];
 setmod = 2
 cpuinfo = is_windows = somestring = ''
 DETACHED_PROCESS = 0x00000008
@@ -163,7 +177,10 @@ normalmode = 1
 
 # Google Api
 # Please request your own api key !!!
-google_api = 'Your own key'
+google_api = 'AIzaSyCZ1H60_jeoasn-BPcUPUk-fYBBrW6VNS0'
+
+# virus_total_apis key
+API_KEY = 'b72865f92cba5aacd661fb32f770a26ed2f80711c3489385c726f6849ff89522'
 
 # Disk access times
 last_disk_time = None
@@ -1447,6 +1464,155 @@ def get_hwnds_for_pid (pid):
 	win32gui.EnumWindows (callback, hwnds)
 	return hwnds
 	
+	
+def GetProcessIdByName(procname):
+	"""
+	Try and get pid for a process by name.
+	"""
+	ourPid = -1
+	procname = procname.lower()
+	try:
+		ourPid = win32api.GetCurrentProcessId()
+	except:
+		pass
+	pids = win32process.EnumProcesses()
+	for pid in pids:
+		if ourPid == pid:
+			continue
+		try:
+			hPid = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ, 0, pid)
+			try:
+				mids = win32process.EnumProcessModules(hPid)
+				for mid in mids:
+					name = str(win32process.GetModuleFileNameEx(hPid, mid))
+					if name.lower().find(procname) != -1:
+						return pid
+			finally:
+				win32api.CloseHandle(hPid)
+		except:
+			pass
+	return None
+	
+#Const EVENT_TYPE_SUCCESS = 0      Const EVENT_TYPE_ERROR   = 1      Const EVENT_TYPE_WARNING = 2 
+#Const EVENT_TYPE_INFORMATION = 4  Const EVENT_TYPE_AUDITSUCCESS = 8 Const EVENT_TYPE_AUDITFAILURE = 16
+
+#New possibilities
+def EventLogAnalyse(input,level):
+	import win32evtlog   
+	logtype = 'System'
+	hand = win32evtlog.OpenEventLog("",logtype)
+	flags = win32evtlog.EVENTLOG_SEQUENTIAL_READ|win32evtlog.EVENTLOG_FORWARDS_READ
+	while True:
+		events = win32evtlog.ReadEventLog(hand, flags,0)
+		if events:
+			for event in events:
+				if (str(event.SourceName)) == input and (str(event.EventType) == level):
+					return 1;
+		else:
+			break;
+
+def RuntimeChecker():
+	if (EventLogAnalyse("i8042prt","2")):
+		KeyboardDataQueueSize(0x0000100)
+		print ("1")
+	if (EventLogAnalyse("Bits-Client","1")):
+		BITS()
+		print ("2")
+	if (EventLogAnalyse("Display","2")):
+		gputimeout()
+		print ("3")
+	if (EventLogAnalyse("DNS Client Events","2")):
+		os.system(str13)
+		os.system(str15)
+		os.system(str16)
+		os.system(str17)
+		print ("4")
+	if (EventLogAnalyse("Time-Service","2")):
+		timesync()
+	return;
+
+	
+	
+class ProcessVolumeOrganizer(threading.Thread):
+	def stop(self):
+		self.__stop = True
+
+	def __init__(self, my_queue): 
+		#self.daemon = True
+		threading.Thread.__init__(self)
+		self.my_queue = my_queue
+
+	def run(self):
+		while True:
+			time.sleep(10)
+			processvolume()
+			
+# Example : If you talk over Skype you maybe dont want to hear Metalica at the same time .
+def processvolume():
+	while True:
+		time.sleep(10)
+		sessions = AudioUtilities.GetAllSessions()
+		for session in sessions:
+			volume = session.SimpleAudioVolume
+			if session.Process and session.Process.name() == "chrome.exe":
+				volume.SetMute(0, None)
+			else:
+				volume.SetMute(1, None)
+		
+# The time should depend from the mouse movement
+class ProcessTimeOrganizer(threading.Thread):
+	def stop(self):
+		self.__stop = True
+
+	def __init__(self, my_queue): 
+		#self.daemon = True
+		threading.Thread.__init__(self)
+		self.my_queue = my_queue
+
+	def run(self):
+		while True:
+			time.sleep(10)
+			processtime()
+			
+# Sort process list by cpu time 
+# System process or Antivirus software is not accesable !
+def processtime():
+	count2 = 0;lastline = ''
+	cmd = """powershell Get-Process | Sort-Object CPU -desc | Select-Object -first 3 | Format-Table CPU,ProcessName,Id -hidetableheader"""	
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline();line = line.rstrip()
+		if line != '' and lastline != line:
+			count2 += 1;lastline = line
+			if count2 > 1 :
+				if count2 == 5:
+					return 0;
+				cache = int(line.split()[2])
+				print (cache)
+				if cache < 1400:
+					pass
+				else:
+					try:
+						if any(str(cache) in s for s in topprocess):
+							pass
+						else:
+							if len(topprocess) > 3:
+								old = topprocess.pop(0)
+								handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, old)
+								win32process.SetPriorityClass(handle,  win32process.NORMAL_PRIORITY_CLASS)
+							handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, cache)
+							win32process.SetPriorityClass(handle, win32process.ABOVE_NORMAL_PRIORITY_CLASS)
+							topprocess.extend([str(cache)])
+					except IOError:
+						pass
+				#cache =  "".join([str(cache)[2:-1],".exe"]) #ProcessID = GetProcessIdByName(cache)
+				#return str(cache)
+			else:
+				pass
+		else:
+			break
+	return;
+	
 # Give foreground application more rights :	
 class ForegroundWindow(threading.Thread):
 	def stop(self):
@@ -1466,23 +1632,46 @@ class ForegroundWindow(threading.Thread):
 				fgWindow = win32gui.GetForegroundWindow()
 				threadID, ProcessID = win32process.GetWindowThreadProcessId(fgWindow)
 				process = psutil.Process(ProcessID)
-				print (process.name())
-				print (oProcessID)
-				print (ProcessID)
+				#print (process.name()) print (process.exe()) print (oProcessID) print (ProcessID)
 				if (ProcessID != oProcessID):
-					#print "Hallo"
 					handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, ProcessID)
 					win32process.SetPriorityClass(handle, win32process.ABOVE_NORMAL_PRIORITY_CLASS)
+					virustotalcheck(md5sum(process.exe()),process.name())
 					powercfgc(process.name())
 					if oProcessID:
-						#print "Meno"
-						handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, oProcessID)
-						win32process.SetPriorityClass(handle,  win32process.NORMAL_PRIORITY_CLASS)
+						try:
+							handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, oProcessID)
+							win32process.SetPriorityClass(handle,  win32process.NORMAL_PRIORITY_CLASS)
+						except IndexError:
+							pass
 				oProcessID = ProcessID
 			except  psutil.NoSuchProcess:
 				pass
 
 # Every move has his own reason
+# Assume some scannner detect something wrong , need more examples for actions.
+
+def virustotalcheck(input,name):
+	print (input)
+	if any(input in s for s in md5):
+		pass
+	else:
+		vt = VirusTotalPublicApi(API_KEY)
+		response =  vt.get_file_report(input)
+		response = (json.dumps(response, sort_keys=False, indent=4))
+		if """"positives": 0,""" in response:
+			md5.extend([input])		
+			print (md5)
+		elif """"positives": 1,""" in response:
+			pass
+		elif """"positives": 2,""" in response:
+			pass
+		elif """"positives": 3,""" in response:
+			pass
+		elif """"positives": 4,""" in response:
+			pass				
+		else:
+			w.balloon_tip("Suspicious file found", name)
 
 def OnMouseEvent():
 	global mosposx,mosposold
@@ -1713,6 +1902,9 @@ def get_size(start_path = '.'):
 			fp = os.path.join(dirpath, f)
 			total_size += os.path.getsize(fp)
 	return total_size
+	
+def timesync():
+	os.system("net start w32time && w32tm /resync")
 		
 def synflood():
 	os.system(str8)
@@ -1804,6 +1996,20 @@ def TcpDelAckTicks(value):
 	
 def DisableDHCPMediaSense():
 	winreg(name,'DisableDHCPMediaSense',0x00000001,1,str4)
+	
+def KeyboardDataQueueSize(value):
+	winreg(name,'KeyboardDataQueueSize',value,1,str52)
+
+#Limits the number of jobs that a user can create on the computer. The default is 60 jobs per user.
+#This policy does not apply to a user with administrator privileges or service accounts.
+def BITS():
+	winreg(name,'MaxJobsPerUser',0x0000003C,1,str53)
+	gpupdate()
+	
+#Refresh Group Policies
+def gpupdate():
+	os.system("gpupdate /force")
+
 		
 #https://technet.microsoft.com/en-us/library/cc938205.aspx
 # 0:Timestamps and window scaling are disabled. 1:Window scaling is enabled. 2:	Timestamps are enabled. 3: Timestamps and window scaling are enabled.
@@ -1835,7 +2041,14 @@ def windowsmb(choose):
 		winreg(name,'NoRecentDocsNetHood',0x00000000,1,str48)
 		winreg(name,'NoDetailsThumbnailOnNetwork',0x00000000,1,str48)
 		winreg(name,'InfoCacheLevel',0x00000001,1,str49)
-
+		
+#1.disable the C2 state
+#2.all  C-states are disabled except for the C1
+def disablecstates(choose):
+	if choose == 1:
+		winreg(name,'Capabilities',0x0007e066,1,str51)
+	else:
+		winreg(name,'Capabilities',0x0007e666,1,str51)
 	
 #PCI Express Power Management Settings : 0 : disable 1 : Attempt to use the L0S state when link is idle. 2: Attempt to use the L1 state when the link is idle.
 def pcic(value):
@@ -1850,6 +2063,12 @@ def pcic(value):
 #GUID des Energieschemas: 381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert)
 #GUID des Energieschemas: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Hoechstleistung)
 #GUID des Energieschemas: a1841308-3541-4fab-bc81-f71556f20b4a  (Energiesparmodus)
+
+# Configures the LPM state.
+def harddrivesaving():
+	os.system('powercfg -setacvalueindex 381b4222-f694-41f0-9685-ff5bb260df2e 0012ee47-9041-4b5d-9b77-535fba8b1442 0b2d69d7-a2a1-449c-9680-f91c70521c60 2')
+	os.system('powercfg -setacvalueindex 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 0012ee47-9041-4b5d-9b77-535fba8b1442 0b2d69d7-a2a1-449c-9680-f91c70521c60 4')
+	os.system('powercfg -setacvalueindex a1841308-3541-4fab-bc81-f71556f20b4a 0012ee47-9041-4b5d-9b77-535fba8b1442 0b2d69d7-a2a1-449c-9680-f91c70521c60 0')
 
 # Adjusts the refresh rate to save power and maintain visual quality.NVIDIA Display Power Saving technology
 #
@@ -1883,6 +2102,17 @@ def disableoffloaddriver():
 	except IOError:
 		#Probably wrong keywords , almost i tried!
 		pass
+		
+def numatry():
+	cmd = 'bcdedit.exe /set groupsize '.split()
+	cache =  "".join([cmd,str(available_cpu_count())])
+	cmd2 = 'bcdedit.exe /set groupaware on'.split()
+	os.system(cmd)
+	os.system(cmd2)
+	
+def usesysclock():
+	cmd = 'bcdedit /set useplatformclock true'.split()
+	os.system(cmd)
 	
 
 def mtus(value):
@@ -1971,7 +2201,7 @@ def addhost():
 		os.chdir(r'C:\Windows\System32\drivers\etc')
 		cache = str2
 		cache = "".join(ip[2:-1])
-		w.balloon_tip("Add entry to host", "mmh")
+		#w.balloon_tip("Add entry to host", "mmh")
 		try:
 			fileObj = open('hosts', "a")
 			fileObj.write(cache + "\n")
@@ -2152,6 +2382,25 @@ def getmtuv():
 			break
 	return;
 	
+#netsh wlan connect name="something" ->> netsh wlan connect name="something"
+def getssid():
+	count2 = 0;lastline = ''
+	cmd = """powershell netsh wlan show interfaces | Select-String '\sSSID'"""	
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	while True:
+		line = p.stdout.readline();line = line.rstrip()
+		if line != '' and lastline != line:
+			count2 += 1;lastline = line
+			print (line)
+			if count2 == 2:
+				cache = line.split()[2]
+				return str(cache)
+			else:
+				pass
+		else:
+			break
+	return;
+	
 # get WLAN TX
 # Intel : Get-NetAdapterAdvancedProperty -Name * -RegistryKeyword "IbssTxPower" | select RegistryValue
 # Value 0,25,50,75,100
@@ -2173,13 +2422,20 @@ def readptx():
 		else:
 			break
 	return;
-
+	
+# Important Wlan has to disconnect to apply the change ...
+#[2:-1]
 def setptx(value):
 	count2 = 0;lastline = ''
+	reconnect = "cmd /c netsh wlan connect name=".split()
+	ssid = getssid()
+	reconnects =  "".join([str(reconnect),ssid])
 	cmd = '''powershell Set-NetAdapterAdvancedProperty -Name * -RegistryKeyword "IbssTxPower" -Registryvalue '''
 	easy = '"'
 	cmd =  "".join([cmd,easy,str(value),easy])
 	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	print (reconnects)
+	os.system(reconnects)
 	
 	
 # dBm = (quality / 2) - 100  where quality: [0 to 100]
@@ -2204,24 +2460,27 @@ def wlanc():
 					count2 += 1;lastline = line
 					if count2 == 1:
 						cache = line
-						cache = int(cache.split(b"%", 1)[0])
-						dBm = ((cache/2)-100)
-						d = 10**((27.55-((20*math.log10(2412))+dBm))/20)
-						if (cache < 80):
-							readtx = readptx()
-							if (readtx != 100):
-								readtx = readtx + 25
-								setptx(cache)
-							if readtx == 100:
-								wlansaving(1)
-						if (cache > 95):
-							readtx = readptx()
-							if (readtx != 0):
-								readtx = readtx - 25
-								setptx(readtx)
-							if readtx == 100:
-								wlansaving(0)
-						return cache
+						if cache:	
+							cache = int(cache.split(b"%", 1)[0])
+							dBm = ((cache/2)-100)
+							d = 10**((27.55-((20*math.log10(2412))+dBm))/20)
+							if (cache < 80):
+								readtx = readptx()
+								if (readtx != 100):
+									readtx = readtx + 25
+									setptx(cache)
+								if readtx == 100:
+									wlansaving(1)
+							if (cache > 95):
+								readtx = readptx()
+								if (readtx != 0):
+									readtx = readtx - 25
+									setptx(readtx)
+								if readtx == 100:
+									wlansaving(0)
+							return cache
+						else:
+							break
 					else:
 						pass
 				else:
@@ -2241,6 +2500,7 @@ class wlansignalstrenght(threading.Thread):
 	def run(self):
 		while True:
 			wlanc()
+			time.sleep(30)
 
 # Intel
 # Use mixed mode protection to avoid data collisions in a mixed 802.11b and 802.11g environment.
@@ -2255,6 +2515,7 @@ def wlanrecommendsettings(choose):
 	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
 	
 
+# Next time take median , not arithmetic mean
 def latencyc():
 	while True:
 		global aptn
@@ -2472,6 +2733,7 @@ def ipstatsc(mode):
 			break
 	return;
 	
+# I know !
 def dlso(command):
 	cmd = command.split()
 	try:
@@ -2548,9 +2810,13 @@ def everything():
 	getgpu()
 	checkmode()
 
+
 def initials():
 	global fname,startm,mousec,foregroundc,pathname,spath,wlancheck
 	startm = time.time()
+	if os.path.getsize(r"md5value") > 0:  
+		with open ('md5value', 'rb') as fp:
+			md5 = pickle.load(fp)
 	#nslookupc()
 	
 	info = get_cpu_info_from_registry()
@@ -2561,6 +2827,10 @@ def initials():
 	#t = threading.Thread(name='child procs', target=mainmouse)
 	#t.start()
 	wmetric()
+	#processvolumec = ProcessVolumeOrganizer(my_queue)
+	#processvolumec.start()
+	processtimer = ProcessTimeOrganizer(my_queue)
+	processtimer.start()
 	mousec = Thread(target=mainmouse)
 	mousec.start()
 	wlancheck = wlansignalstrenght(my_queue)
@@ -3120,6 +3390,18 @@ def getsysletter():
 	part0 = sysdrive.split("\\", 1)[0]
 	return part0
 	
+#generate md5 
+def md5sum(filename):
+	try:
+		with open(filename, mode='rb') as f:
+			d = hashlib.md5()
+			for buf in iter(partial(f.read, 128), b''):
+				d.update(buf)
+		return d.hexdigest()
+	except OSError:
+		pass
+
+	
 #Check if Java Enviroment is set correctly (only 64x)
 def enviromentcjava():
 	cmd =  "".join([getsysletter(),sysdrivestrjava])
@@ -3127,27 +3409,41 @@ def enviromentcjava():
 		pass
 	else:
 		pass
+		
+def checkexecution(input):
+	try:
+		os.system(input)
+		return 1;
+	except OSError:
+		return 0;
+		
+def Checkavailableresources():
+	try:
+		list_a = ["perl","ruby"]
+		odd_list = []
+		for x in list_a:
+			if checkexecution(x):
+				odd_list.append(x)
+			else:
+				pass
+	except OSError:
+		pass
+				
+
+		
 
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
 #pid1 = subprocess.Popen([sys.executable, "D:\Snort\log\pop3.py"],creationflags=DETACHED_PROCESS).pid
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
 #w.balloon_tip("Title for popup", "This is the popup's message")
-#checknfts()
 w = WindowsBalloonTip()
-#getgpustatus()	
-#tcpinitialrtt(2888)
-#apprun('Chrome')
-#print(psutil.cpu_percent())
-#ForegroundWindow()
-#readptx()
-#checksmart()
-#powercfgc("firefox.exe")
-#sbl = SafeBrowsingList('AIzaSyCZ1H60_jeoasn-BPcUPUk-fYBBrW6VNS0')
-#print (sbl.lookup_url('http://38zu.cn'))
+getssid()
 blockad()
 #loadBadDomains(url1)
 #resolvename("yieldlab.net")
+#processtime()
+RuntimeChecker()
 #time.sleep(999)
 initials()
 #time.sleep(999)
@@ -3211,6 +3507,8 @@ try:
 except KeyboardInterrupt:
 	try:
 		try:
+			with open('md5value', 'wb') as fp:
+				pickle.dump(md5, fp)
 			w.balloon_tip("Shutdown succesful", "Goodbye")
 			#Important :close all threads
 			#mousec._Thread__stop()
