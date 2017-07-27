@@ -29,7 +29,8 @@ else:
 		import wx.adv
 		import winreg as wreg
 	except ImportError:
-		 os.system('python -m pip install wx')
+		 #os.system('python -m pip install wx')
+		 pass
 
 try:
 	import mmap,os.path,subprocess,time,socket,struct,win32con,platform,re,ctypes,win32ui,math,psutil,threading,string,win32process,wx
@@ -60,8 +61,12 @@ try:
 	from gglsbl.utils import to_hex
 	from gglsbl.protocol import SafeBrowsingApiClient, URL
 	from gglsbl.storage import SqliteStorage, ThreatList, HashPrefixList
+	
+	import urllib.parse as urllib
+	from urllib import parse as urlparse
 except ImportError:
-	os.system('python -m pip install pygame nmap')
+	#os.system('python -m pip install pygame nmap')
+	pass
 	
 try:
     from googleapiclient.discovery import build
@@ -69,10 +74,6 @@ try:
 except ImportError:
     from apiclient.discovery import build
     from apiclient.errors import HttpError
-	
-
-import urllib.parse as urllib
-from urllib import parse as urlparse
 	
 import json
 import hashlib
@@ -92,6 +93,12 @@ from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import win32evtlog   
+import geocoder
+import requests
+import pyowm
+from urllib.request import urlopen
+import pythoncom
+
 #from gglsbl.utils import to_hex
 	
 
@@ -100,9 +107,9 @@ fname = r'D:\Snort\log'
 line_number = line_num = counter = counterc = problemc = cool = startm = endm = windowsize = ProcessID = oProcessID = 0
 # Different times for ping
 ldp = 0.0;cv = 10.0;cv2 = 5.0;aptn = 15
-# Temperatur k= 1/t*ln(Ta-Tu/(Tn-Tu)) -> T = Tu*(Ta-Tu)*e^-kt
+# Temperatur k= 1/t*ln(Ta-Tu/(Tn-Tu)) -> T = Tu+(Ta-Tu)*e^-kt
 # System depending constant
-Tu = 20;Ta = 25;Tn = t = 0
+Tu = 20;Ta = 25;Tn = t = 0;location = ''
 #Need some time , not finish now(obvious mistake!)
 k = -0.00878084723396
 compare = ['[**]'];
@@ -160,6 +167,7 @@ str50 = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\explorer\\SCAPI\\'
 str51 = 'System\\CurrentControlSet\\Control\\Processor\\'
 str52 = 'SYSTEM\\CurrentControlSet\\Services\\i8042prt\\Parameters\\'
 str53 = 'SOFTWARE\\Policies\\Microsoft\\Windows\\BITS\\'
+str54 = 'Software\\AppDataLow\\Software\\JavaSoft\\DeploymentProperties\\'
 x = []; name = '';empty_line = [];cache = [];cache2 = [];blockedip = [];ip = [];appc = [];run = True;arch = '';
 ose = '';powercfgl = [];md5 = [];topprocess = [];
 setmod = 2
@@ -173,18 +181,24 @@ DETACHED_PROCESS = 0x00000008
 url1 = ['https://adaway.org/hosts.txt', 'https://hosts-file.net/ad_servers.txt', 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext']
 
 ## Switch for 
-normalmode = 1
+normalmode = 0
 
 # Google Api
 # Please request your own api key !!!
-google_api = 'YourOwn'
+google_api = 'useyourown'
 
 # virus_total_apis key
-API_KEY = 'YourOwn'
+API_KEY = 'useyourown'
+
+# https://openweathermap.org/current
+owm = pyowm.OWM('useyourown')  # You MUST provide a valid API key
 
 # Disk access times
 last_disk_time = None
 last_time = None
+
+# Weather Info 
+weatherstat = '';oldweatherstat = ''
 
 bits = platform.architecture()[0]
 is_windows = platform.system().lower() == 'windows'
@@ -280,6 +294,7 @@ class Thread(threading.Thread):
 		return self.__trace
 	
 #wx.adv.TaskBarIcon	
+# PATH ; break a lot
 class TaskBarIconWindow(wx.adv.TaskBarIcon):
 	def __init__(self):
 		super(TaskBarIconWindow, self).__init__()
@@ -288,7 +303,9 @@ class TaskBarIconWindow(wx.adv.TaskBarIcon):
 
 	def CreatePopupMenu(self):
 		menu = wx.Menu()
-		create_menu_item(menu, 'Say Hello', self.on_hello)
+		create_menu_item(menu, 'Clean PATH', self.path)
+		menu.AppendSeparator()
+		create_menu_item(menu, 'Java High_Level', self.javasafety)
 		menu.AppendSeparator()
 		create_menu_item(menu, 'Exit', self.on_exit)
 		return menu
@@ -304,10 +321,16 @@ class TaskBarIconWindow(wx.adv.TaskBarIcon):
 	def on_left_down(self, event):
 		print ('Tray icon was left-clicked')
 
-	def on_hello(self, event):
-		print ('Hello, world!')
+	def path(self, event):
+		os.systen("PATH ;")
+		
+	def javasafety(self, event):
+		strictjava()
 
 	def on_exit(self, event):
+		os.chdir(pathname)
+		with open('md5value', 'wb') as fp:
+			pickle.dump(md5,fp)
 		os.system("taskkill /f /im python.exe")
 		wx.CallAfter(self.Destroy)
 
@@ -1514,24 +1537,19 @@ def EventLogAnalyse(input,level):
 def RuntimeChecker():
 	if (EventLogAnalyse("i8042prt","2")):
 		KeyboardDataQueueSize(0x0000100)
-		print ("1")
 	if (EventLogAnalyse("Bits-Client","1")):
 		BITS()
-		print ("2")
 	if (EventLogAnalyse("Display","2")):
 		gputimeout()
-		print ("3")
 	if (EventLogAnalyse("DNS Client Events","2")):
 		os.system(str13)
 		os.system(str15)
 		os.system(str16)
 		os.system(str17)
-		print ("4")
 	if (EventLogAnalyse("Time-Service","2")):
 		timesync()
 	return;
 
-	
 	
 class ProcessVolumeOrganizer(threading.Thread):
 	def stop(self):
@@ -1546,7 +1564,7 @@ class ProcessVolumeOrganizer(threading.Thread):
 		while True:
 			time.sleep(10)
 			processvolume()
-			
+
 # Example : If you talk over Skype you maybe dont want to hear Metalica at the same time .
 def processvolume():
 	while True:
@@ -1558,6 +1576,29 @@ def processvolume():
 				volume.SetMute(0, None)
 			else:
 				volume.SetMute(1, None)
+		
+class WeatherWatch(threading.Thread):
+	def stop(self):
+		self.__stop = True
+
+	def __init__(self, my_queue): 
+		#self.daemon = True
+		threading.Thread.__init__(self)
+		self.my_queue = my_queue
+
+	def run(self):
+		while True:
+			time.sleep(10)
+			weatherstatus()
+			
+def weatherstatus():
+	global weatherstat,oldweatherstat
+	obs = owm.weather_at_place(location)
+	w = obs.get_weather()  
+	oldweatherstat = weatherstat
+	weatherstat = w.get_status()
+	if not oldweatherstat in weatherstat:
+		w.balloon_tip("Weather changed", weatherstat)
 		
 # The time should depend from the mouse movement
 class ProcessTimeOrganizer(threading.Thread):
@@ -1576,9 +1617,11 @@ class ProcessTimeOrganizer(threading.Thread):
 			
 # Sort process list by cpu time 
 # System process or Antivirus software is not accesable !
+#OpenProcess only works if the process object still exists. 
+#By the time you call OpenProcess if the process object is gone - the result is a call with invalid parameter.
 def processtime():
 	count2 = 0;lastline = ''
-	cmd = """powershell Get-Process | Sort-Object CPU -desc | Select-Object -first 3 | Format-Table CPU,ProcessName,Id -hidetableheader"""	
+	cmd = """powershell Get-Process | Where-Object {$_.name -ne 'avguard'}| Where-Object {$_.name -ne 'audiodg'}| Where-Object {$_.name -ne 'SearchIndexer'}| Where-Object {$_.name -ne 'dwm'}| Where-Object {$_.name -ne 'SettingSyncHost'}| Where-Object {$_.name -ne 'Memory Compression'}| Where-Object {$_.name -ne 'System'}| Where-Object {$_.name -ne 'svchost'}| Sort-Object CPU -desc | Select-Object -first 3 | Format-Table CPU,ProcessName,Id -hidetableheader"""	
 	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
 	while True:
 		line = p.stdout.readline();line = line.rstrip()
@@ -1614,6 +1657,8 @@ def processtime():
 	return;
 	
 # Give foreground application more rights :	
+# PROCESS_ALL_ACCESS couse sometimes Access denied errors
+# PROCESS_QUERY_INFORMATION
 class ForegroundWindow(threading.Thread):
 	def stop(self):
 		self.__stop = True
@@ -1633,17 +1678,20 @@ class ForegroundWindow(threading.Thread):
 				threadID, ProcessID = win32process.GetWindowThreadProcessId(fgWindow)
 				process = psutil.Process(ProcessID)
 				#print (process.name()) print (process.exe()) print (oProcessID) print (ProcessID)
-				if (ProcessID != oProcessID):
-					handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, ProcessID)
-					win32process.SetPriorityClass(handle, win32process.ABOVE_NORMAL_PRIORITY_CLASS)
-					virustotalcheck(md5sum(process.exe()),process.name())
-					powercfgc(process.name())
-					if oProcessID:
-						try:
-							handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, oProcessID)
-							win32process.SetPriorityClass(handle,  win32process.NORMAL_PRIORITY_CLASS)
-						except IndexError:
-							pass
+				if (ProcessID != oProcessID and not str(process.name()) in 'cmd.exe' and not str(process.name()) in 'explorer.exe'):
+					try:
+						handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, ProcessID)
+						win32process.SetPriorityClass(handle, win32process.ABOVE_NORMAL_PRIORITY_CLASS)
+						virustotalcheck(md5sum(process.exe()),process.name())
+						powercfgc(process.name())
+						if oProcessID and psutil.pid_exists(oProcessID):
+							try:
+								handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, oProcessID)
+								win32process.SetPriorityClass(handle,  win32process.NORMAL_PRIORITY_CLASS)
+							except IndexError:
+								pass
+					except (IOError):
+						pass
 				oProcessID = ProcessID
 			except  psutil.NoSuchProcess:
 				pass
@@ -1671,7 +1719,45 @@ def virustotalcheck(input,name):
 		elif """"positives": 4,""" in response:
 			pass				
 		else:
-			w.balloon_tip("Suspicious file found", name)
+			try:
+				kill = 'taskkill /f /im '
+				ips =  "".join([kill,name])
+				os.system(ips)
+				w.balloon_tip("Suspicious file found", name)
+				if (runningprocess(name)):
+					pass
+			except IOError:
+				pass
+			
+#Check if Antivirus still working ....			
+def eicartest():
+	eicarhex="58354f2150254041505b345c505a58353428505e2937434329377d2445494341522d5354414e444152442d414e544956495255532d544553542d46494c452124482b482a"
+	result = bytes.fromhex(eicarhex)
+	file = open('eicartest.com', 'wb')
+	file.write(result)
+	file.close 
+	
+def runningprocess(name):
+	import win32ui
+	for pid in psutil.pids():
+		p = psutil.Process(pid)
+		if p.name() == name:
+			return 1
+	
+def getplace(lat, lon):
+	url = r"http://maps.googleapis.com/maps/api/geocode/json?"
+	url += r"latlng=%s,%s&sensor=false" % (lat, lon)
+	v = urlopen(url).read().decode('utf8')
+	j = json.loads(v)
+	components = j['results'][0]['address_components']
+	country = town = None
+	for c in components:
+		if "country" in c['types']:
+			country = c['long_name']
+		if "postal_town" in c['types']:
+			town = c['long_name']
+	return country
+
 
 def OnMouseEvent():
 	global mosposx,mosposold
@@ -1787,12 +1873,20 @@ def gpustatuserror(argument):
     return switcher.get(argument, "None")
 		
 # expect wddm driver!
+# Error 31 can be coused by wrong driver even if everything works.
 def getgpu():
 	WMI = GetObject('winmgmts:')
 	for battery in WMI.InstancesOf('Win32_VideoController'):
-		if battery.ConfigManagerErrorCode != 0:
+		if battery.ConfigManagerErrorCode != 0 and not 22:
 			w.balloon_tip("GPU Error occured", errorg(battery.ConfigManagerErrorCode))
 			getgpustatus()
+			
+def getgpuskills():
+	WMI = GetObject('winmgmts:')
+	for battery in WMI.InstancesOf('Win32_VideoController'):
+		if battery.PowerManagementCapabilities == 0:
+			pass
+			
 		
 def getgpustatus():
 	WMI = GetObject('winmgmts:')
@@ -1801,7 +1895,15 @@ def getgpustatus():
 			gputimeout()
 			pcic(0)
 			
-		
+
+def getnetworkskills():
+	WMI = GetObject('winmgmts:')
+	for battery in WMI.InstancesOf('MSFT_NetAdapterPowerManagementSettingData'):
+		if battery.ArpOffload == 0:
+			pass
+		if battery.RsnRekeyOffload == 0:
+			pass
+			
 def available_cpu_count():
     try:
         import psutil
@@ -1894,14 +1996,24 @@ def dnscheck():
 			w.balloon_tip("Your DNS Cache is poisened!", "Disconnect immediately!")
 		
 #Give the size of the temp folder back		
+# del /q/f/s %TEMP%\*
 def get_size(start_path = '.'):
-	os.chdir('C:\\temp')
+	string =  ''.join([str(getsysletter()),'\\temp'])
+	os.chdir(string)
 	total_size = 0
 	for dirpath, dirnames, filenames in os.walk(start_path):
 		for f in filenames:
 			fp = os.path.join(dirpath, f)
 			total_size += os.path.getsize(fp)
-	return total_size
+	if total_size:
+		os.system("del /q/f/s %TEMP%\*")
+	
+def getdrivestatus():
+	WMI = GetObject('winmgmts:')
+	for disk in WMI.InstancesOf('Win32_DiskQuota'):
+		if disk.Status != 0:
+			get_size()
+			
 	
 def timesync():
 	os.system("net start w32time && w32tm /resync")
@@ -2102,6 +2214,15 @@ def disableoffloaddriver():
 	except IOError:
 		#Probably wrong keywords , almost i tried!
 		pass
+			
+# Increase Java safety settings. Nirsoft Registry Monitor (RegFromApp)
+def strictjava():
+	regwinsz('deployment.webjava.enabled','false',str54)
+	regwinsz('deployment.security.level','VERY_HIGH',str54)
+	
+def normaljava():
+	regwinsz('deployment.webjava.enabled','true',str54)
+	regwinsz('deployment.security.level','HIGH',str54)	
 		
 def numatry():
 	cmd = 'bcdedit.exe /set groupsize '.split()
@@ -2150,7 +2271,6 @@ def tune():
 # Adds values to the registry only REG_DWORD and inform the system about the change !
 def winreg(dnsname, regn, rvalue,rpath,str):
 	from win32gui import SendMessage
-	print (dnsname)
 	if not dnsname:
 		regrule = str
 	else:
@@ -2166,6 +2286,16 @@ def winreg(dnsname, regn, rvalue,rpath,str):
 	if rpath == 0:
 		os.system('RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters ,1 ,True')
 	
+def regwinsz(regn,rvalue,str):
+	from win32gui import SendMessage
+	regrule = str
+	key = wreg.CreateKey(wreg.HKEY_CURRENT_USER, regrule)
+	wreg.SetValueEx(key, regn, 0, wreg.REG_SZ, rvalue)
+	wreg.CloseKey(key)
+	key.Close()
+	SendMessage(win32con.HWND_BROADCAST, win32con.WM_SETTINGCHANGE, 0, 0)
+	os.system('RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters ,1 ,True')	
+
 # Check if Firewall is enabled(check!)
 #Simple but effectiv
 def firewallr():
@@ -2226,21 +2356,28 @@ def file_len(fname):
 	f.close()
 	return i + 1
 	
+# Tracert can easily blocked with iptables .
 def tracertc():
-	cmd = 'tracert -d -h 1 www.google.de'.split()
-	count2 = 0;lastline = ''
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	while True:
-		line = p.stdout.readline();line = line.rstrip()
-		if line != '' and lastline != line:
-			count2 += 1;lastline = line
-			if count2 == 5:
-				cache = line.split()
-				return cache[7]
+		print ("tracert")
+		cmd = 'tracert -d -h 1 www.google.de'.split()
+		count2 = 0;lastline = ''
+		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		while True:
+			line = p.stdout.readline();line = line.rstrip()
+			if line != '' and lastline != line:
+				count2 += 1;lastline = line
+				if count2 == 5:
+					try:
+						cache = line.split()
+						return cache[7]
+					except IndexError:
+						return (ipowershell(0)[1:-1])
+				else:
+					pass
 			else:
-				pass
-		else:
-			break
+				break
+		return;
 	return;
 	
 # Next time should check ttl value.
@@ -2251,7 +2388,6 @@ def pingc():
 	cmd = 'ping.exe -n 1 '
 	try:
 		cmd = "".join((cmd, str(tracertc())[2:-1])).split()
-		print (cmd)
 	except IOError:
 		diagnose()
 		return;
@@ -2280,7 +2416,7 @@ def pingc():
 						counterc += 1
 						if counterc == 3:
 							w.balloon_tip("Network time abnormal", "Instabil")
-				except IOError:
+				except (IOError,IndexError):
 					break
 			else:
 				pass
@@ -2335,6 +2471,7 @@ def ipowershell(choose):
 						return (cache)
 					if choose == 1:
 						cache = int(cache[2])
+						print (cache)
 						return str(cache)
 					if choose == 2:
 						cache = int(cache[1])
@@ -2450,7 +2587,6 @@ def setptx(value):
 def wlanc():
 		time.sleep(1)
 		try:
-			print ("Easy 1-2-3")
 			count2 = 0;lastline = ''
 			cmd = """powershell (netsh wlan show interfaces) -Match '^\s+Signal' -Replace '^\s+Signal\s+:\s+',''"""
 			p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
@@ -2535,6 +2671,8 @@ def latencyc():
 							print (cache2)
 							cache2 = cache2.split(b"ms", 1)[0]
 							print (cache2)
+							if cache2 is None:
+								return 100
 							return float(cache2)
 						else:
 							break
@@ -2578,9 +2716,6 @@ def wmetric():
 	cache = cache/(mtu-20)
 	windowsize = int(cache * (mtu-20))
 	disablewindowscaling()
-	print (metricvalue(value))
-	print ("Fuck ...............")
-
 
 #Old function already replaced
 def arpc():
@@ -2812,13 +2947,18 @@ def everything():
 
 
 def initials():
+	ret = run_as_admin()
+	if ret is True:
+		pass
+	else:
+		exit()
 	global fname,startm,mousec,foregroundc,pathname,spath,wlancheck
 	startm = time.time()
 	if os.path.getsize(r"md5value") > 0:  
 		with open ('md5value', 'rb') as fp:
 			md5 = pickle.load(fp)
 	#nslookupc()
-	
+	location()
 	info = get_cpu_info_from_registry()
 	mtudisc()
 	ArpCacheLifet()
@@ -2829,6 +2969,8 @@ def initials():
 	wmetric()
 	#processvolumec = ProcessVolumeOrganizer(my_queue)
 	#processvolumec.start()
+	weatheronwatch = WeatherWatch(my_queue)
+	weatheronwatch.start()
 	processtimer = ProcessTimeOrganizer(my_queue)
 	processtimer.start()
 	mousec = Thread(target=mainmouse)
@@ -2906,6 +3048,7 @@ def checksmart():
 	count2 = 0;lastline = ''
 	cmd = str29.split()
 	a = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None)
+	getdrivestatus()
 	while True:
 		line = a.stdout.readline();line = line.rstrip()
 		if line != '' and lastline != line:
@@ -3205,6 +3348,28 @@ def powercfgc(programm):
 		powercfgl.extend([programm])
 	else:
 		pass
+		
+		
+def run_as_admin(argv=None, debug=False):
+	shell32 = ctypes.windll.shell32
+	if argv is None and shell32.IsUserAnAdmin():
+		return True
+
+	if argv is None:
+		argv = sys.argv
+	if hasattr(sys, '_MEIPASS'):
+		# Support pyinstaller wrapped program.
+		arguments = map(unicode, argv[1:])
+	else:
+		arguments = map(unicode, argv)
+	argument_line = u' '.join(arguments)
+	executable = unicode(sys.executable)
+	if debug:
+		print ('Command line: ', executable, argument_line)
+	ret = shell32.ShellExecuteW(None, u"runas", executable, argument_line, None, 1)
+	if int(ret) <= 32:
+		return False
+	return None
 
 
 #Read the  HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*
@@ -3214,7 +3379,6 @@ def networkid():
 	cache[19] =  "".join([ipowershell(1)[2:-1],'}'])
 	cache = " ".join(cache)
 	count2 = 0;lastline = ''
-	print (cache)
 	c = subprocess.Popen(cache, stdout=subprocess.PIPE, stderr=None)
 	while True:
 		line = c.stdout.readline();line = line.rstrip()
@@ -3385,6 +3549,7 @@ def checkperipherievideo():
 	except IOError:
 		return False
 	
+#Return for example C:
 def getsysletter():
 	sysdrive = os.getenv('WINDIR')
 	part0 = sysdrive.split("\\", 1)[0]
@@ -3419,7 +3584,7 @@ def checkexecution(input):
 		
 def Checkavailableresources():
 	try:
-		list_a = ["perl","ruby"]
+		list_a = ["perl","ruby","java"]
 		odd_list = []
 		for x in list_a:
 			if checkexecution(x):
@@ -3429,8 +3594,18 @@ def Checkavailableresources():
 	except OSError:
 		pass
 				
-
-		
+def location():
+	global Tu,location
+	send_url = r'http://freegeoip.net/json'
+	r = requests.get(send_url)
+	j = json.loads(r.text)
+	lat = j['latitude']
+	lon = j['longitude']
+	location=getplace(lat,lon)
+	obs = owm.weather_at_place(location)
+	w = obs.get_weather()  
+	Tu=(w.get_temperature(unit='celsius')['temp'])
+			
 
 
 #pid = subprocess.Popen([sys.executable, "D:\Snort\log\http.py"],creationflags=DETACHED_PROCESS).pid
@@ -3438,7 +3613,9 @@ def Checkavailableresources():
 #pid2 = subprocess.Popen([sys.executable, "D:\Snort\log\smtpfake.py"],creationflags=DETACHED_PROCESS).pid
 #w.balloon_tip("Title for popup", "This is the popup's message")
 w = WindowsBalloonTip()
-getssid()
+#getssid()
+#ipowershell(1)
+#time.sleep(999)
 blockad()
 #loadBadDomains(url1)
 #resolvename("yieldlab.net")
@@ -3446,7 +3623,6 @@ blockad()
 RuntimeChecker()
 #time.sleep(999)
 initials()
-#time.sleep(999)
 try:
 	os.chdir(fname)
 except IOError:
@@ -3507,14 +3683,14 @@ try:
 except KeyboardInterrupt:
 	try:
 		try:
+			os.chdir(pathname)
 			with open('md5value', 'wb') as fp:
-				pickle.dump(md5, fp)
+				pickle.dump(md5,fp)
 			w.balloon_tip("Shutdown succesful", "Goodbye")
 			#Important :close all threads
 			#mousec._Thread__stop()
-			foregroundc._Thread__stop()
+			#foregroundc._Thread__stop()
 			foregroundc.stop()
-			icons.stop()
 			os.system("taskkill /f /im python.exe")
 			os.remove(PATH)
 			sys.exit(0)
