@@ -1,9 +1,8 @@
 # Imtoolazy
 A small program that converts the conspicuousness of the Snort log into 
 Windows Firewall Rules. Monitor data drops and try to find a solution. 
-Monitors S.M.A.R.T status.It is compatible with py2exe.
-This is necessary because it is a simple alternative to get admin 
-rights , which are required to add Rules to the Windows Firewall.
+Monitors S.M.A.R.T status.
+
 
 **Some functions:**
 
@@ -34,14 +33,6 @@ https://nmap.org/download.html
 
 Install hdparm for Windows:
 http://disablehddapm.blogspot.co.at/
-
-Requirement for Compile:
-
-Python 2.5.4 with py2exe
-After Python installed . cmd -> pip install py2exe
-
-Python : https://www.python.org/download/releases/2.5.4/
-py2exe : https://sourceforge.net/projects/py2exe/
 
 Just Download and install them.
 
